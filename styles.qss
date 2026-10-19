@@ -1,0 +1,128 @@
+QMainWindow, QWidget#centralWidget {
+    background-color: #F3F7FC;
+    color: #171717;
+    font-family: "Segoe UI";
+    font-size: 14px;
+}
+
+QFrame#card {
+    background-color: #FFFFFF;
+    border: 1px solid #E8EDF4;
+    border-radius: 14px;
+}
+
+QLabel#cardTitle {
+    color: #171717;
+    font-size: 18px;
+    font-weight: 600;
+}
+
+QLabel#cardDescription {
+    color: #737B89;
+    font-size: 13px;
+}
+
+QLabel#pathLabel, QLabel#statusLabel {
+    background-color: #F5F7FA;
+    border: 1px solid #E5E9F0;
+    border-radius: 9px;
+    padding: 8px 12px;
+    color: #343A46;
+    font-size: 13px;
+    font-weight: 500;
+}
+
+QFrame#dropZone {
+    background-color: #F8FAFC;
+    border: 1px solid #E5E9F0;
+    border-radius: 10px;
+}
+
+QFrame#dropZone[drag_active="true"] {
+    background-color: #EEF3FF;
+    border: 2px dashed #3867F5;
+}
+
+QTableWidget {
+    background-color: #FFFFFF;
+    border: 1px solid #E5E9F0;
+    border-radius: 8px;
+    gridline-color: transparent;
+    outline: none;
+}
+QHeaderView::section {
+    background-color: #F5F7FA;
+    color: #737B89;
+    padding: 8px;
+    border: none;
+    border-bottom: 1px solid #E5E9F0;
+    font-weight: bold;
+    font-size: 12px;
+}
+QTableWidget::item {
+    border-bottom: 1px solid #F0F2F5;
+    padding: 5px;
+    color: #171717;
+}
+
+QPushButton#primaryButton {
+    background-color: #3867F5;
+    color: #FFFFFF;
+    border: none;
+    border-radius: 10px;
+    padding: 12px 20px;
+    font-size: 15px;
+    font-weight: 600;
+}
+QPushButton#primaryButton:hover {
+    background-color: #2F59DC;
+}
+QPushButton#primaryButton:pressed {
+    background-color: #254BC4;
+}
+QPushButton#primaryButton:disabled {
+    background-color: #AABBEF;
+    color: #F5F7FF;
+}
+
+QPushButton#iconButton {
+    background-color: #F5F7FA;
+    color: #343A46;
+    border: 1px solid #E5E9F0;
+    border-radius: 9px;
+    font-size: 18px;
+}
+QPushButton#iconButton:hover {
+    background-color: #E5E9F0;
+}
+QPushButton#iconButton:pressed {
+    background-color: #D5D9E0;
+}
+
+QFileDialog, QMessageBox {
+    background-color: #F3F7FC;
+    color: #171717;
+}
+
+QMessageBox QLabel {
+    color: #171717;
+    font-size: 14px;
+}
+
+QMessageBox QPushButton {
+    background-color: #3867F5;
+    color: #FFFFFF;
+    border: none;
+    border-radius: 6px;
+    padding: 8px 16px;
+    min-width: 90px;
+    font-weight: bold;
+}
+
+QMessageBox QPushButton:hover {
+    background-color: #2F59DC;
+}
+
+QMessageBox QPushButton:pressed {
+    background-color: #254BC4;
+}
