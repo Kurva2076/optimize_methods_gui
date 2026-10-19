@@ -19,27 +19,25 @@ from lib.optimization.filtering import clean, ALS_PRESET
 
 
 class OptimizationWorker(QObject):
-    """Обрабатывает XYZ-файлы в отдельном потоке."""
-
     progress = Signal(str)
     finished = Signal(int, int, str)
     failed = Signal(str)
 
-    def __init__(self, input_dir: str, output_dir: str) -> None:
+    def __init__(self, input_dir: str, output_dir: str, exclude_files: list[Path] = None) -> None:
         super().__init__()
         self.input_dir = Path(input_dir)
         self.output_dir = Path(output_dir)
+        self.exclude_files = exclude_files or []
 
     @Slot()
     def run(self) -> None:
         try:
             files = sorted(
-                path
-                for path in self.input_dir.iterdir()
-                if path.is_file() and path.suffix.lower() == '.xyz'
+                path for path in self.input_dir.iterdir()
+                if path.is_file() and path.suffix.lower() == '.xyz' and path not in self.exclude_files
             )
             if not files:
-                raise ValueError('В выбранной папке нет файлов с расширением .xyz.')
+                raise ValueError('В папке нет доступных файлов .xyz для обработки.')
 
             self.output_dir.mkdir(parents=True, exist_ok=True)
 
@@ -65,7 +63,6 @@ class OptimizationWorker(QObject):
                     noise_mask = ~result.keep
                     if np.any(noise_mask):
                         noise_path = self.output_dir / f'{file_path.stem}_noise.xyz'
-
                         save_points_to_xyz(
                             points=points[noise_mask],
                             filepath=str(noise_path),
@@ -136,6 +133,8 @@ class MainWindow(QMainWindow):
         self.move(window_geometry.topLeft())
 
         self.input_dir = ''
+        self.all_files: list[Path] = []
+        self.excluded_files: list[Path] = []
         self.output_dir = ''
         self.thread: Optional[QThread] = None
         self.worker: Optional[OptimizationWorker] = None
@@ -195,8 +194,7 @@ class MainWindow(QMainWindow):
         left_layout.addWidget(desc_label)
         left_layout.addSpacing(10)
 
-        drop_zone = DropZone(callback=self.process_input_directory)
-        drop_zone.setObjectName('dropZone')
+        drop_zone = DropZone(callback=self.load_directory)
         drop_zone.setObjectName('dropZone')
         drop_zone.setMinimumHeight(120)
         drop_layout = QVBoxLayout(drop_zone)
@@ -347,7 +345,7 @@ class MainWindow(QMainWindow):
         status_container_layout.addLayout(status_text_layout, 1)
 
         self.apply_shadow(status_container, blur=15, y_offset=3, alpha=25)
-        c3_layout.addWidget(status_container, 1)
+        c3_layout.addWidget(status_container)
 
         c3_layout.addStretch(1)
         self.apply_shadow(card3)
@@ -355,32 +353,55 @@ class MainWindow(QMainWindow):
 
         main_layout.addLayout(right_layout, 1)
 
+    def load_directory(self, directory: str) -> None:
+        self.input_dir = directory
+        path = Path(directory)
+        try:
+            self.all_files = sorted([f for f in path.iterdir() if f.is_file() and f.suffix.lower() == '.xyz'])
+        except OSError:
+            self.all_files = []
+
+        self.excluded_files = []
+        self.update_table()
+
     def select_input_dir(self) -> None:
-        # Эта функция открывает диалоговое окно
         directory = QFileDialog.getExistingDirectory(self, 'Выберите папку с файлами .xyz')
         if directory:
-            self.process_input_directory(directory)
+            self.load_directory(directory)
 
-    def process_input_directory(self, directory: str) -> None:
-        self.input_dir = directory
+    def remove_file(self, file_path: Path) -> None:
+        if file_path not in self.excluded_files:
+            self.excluded_files.append(file_path)
+            self.update_table()
+
+    def update_table(self) -> None:
         self.file_table.setRowCount(0)
-        path = Path(directory)
+        files_to_show = [f for f in self.all_files if f not in self.excluded_files]
 
-        try:
-            xyz_files = [f for f in path.iterdir() if f.is_file() and f.suffix.lower() == '.xyz']
-        except OSError:
-            xyz_files = []
+        self.files_count_label.setText(f"Выбранные файлы ({len(files_to_show)})")
 
-        self.files_count_label.setText(f"Выбранные файлы ({len(xyz_files)})")
-
-        for row, f in enumerate(xyz_files):
+        for row, f in enumerate(files_to_show):
             self.file_table.insertRow(row)
             size_mb = f.stat().st_size / (1024 * 1024)
 
-            self.file_table.setItem(row, 0, QTableWidgetItem(f.name))
-            self.file_table.setItem(row, 1, QTableWidgetItem(f.suffix.lower()))
-            self.file_table.setItem(row, 2, QTableWidgetItem(f"{size_mb:.1f} МБ"))
-            self.file_table.setItem(row, 3, QTableWidgetItem("✕"))
+            item_name = QTableWidgetItem(f.name)
+            item_name.setForeground(QColor("#171717"))
+            self.file_table.setItem(row, 0, item_name)
+
+            item_format = QTableWidgetItem(f.suffix.lower())
+            item_format.setForeground(QColor("#171717"))
+            self.file_table.setItem(row, 1, item_format)
+
+            item_size = QTableWidgetItem(f"{size_mb:.1f} МБ")
+            item_size.setForeground(QColor("#171717"))
+            self.file_table.setItem(row, 2, item_size)
+
+            btn = QPushButton("✕")
+            btn.setStyleSheet(
+                "background: transparent; color: #171717; font-weight: bold; border: none; font-size: 14px;")
+            btn.setCursor(Qt.CursorShape.PointingHandCursor)
+            btn.clicked.connect(lambda checked=False, p=f: self.remove_file(p))
+            self.file_table.setCellWidget(row, 3, btn)
 
     def select_output_dir(self) -> None:
         directory = QFileDialog.getExistingDirectory(self, 'Выберите папку для результатов')
@@ -404,15 +425,22 @@ class MainWindow(QMainWindow):
             QMessageBox.warning(self, 'Некорректные папки', 'Выбери две разные папки, не вложенные друг в друга.')
             return
 
+        if not self.all_files:
+            QMessageBox.warning(self, 'Нет файлов', 'В выбранной папке нет файлов .xyz.')
+            return
+
+        if len(self.all_files) == len(self.excluded_files):
+            QMessageBox.warning(self, 'Нет файлов', 'Все файлы исключены из обработки.')
+            return
+
         self.optimize_button.setEnabled(False)
         self.input_button.setEnabled(False)
         self.output_button.setEnabled(False)
-
         self.status_title.setText("Подготовка к обработке...")
         self.status_desc.setText("Инициализация процесса...")
 
         self.thread = QThread(self)
-        self.worker = OptimizationWorker(self.input_dir, self.output_dir)
+        self.worker = OptimizationWorker(self.input_dir, self.output_dir, self.excluded_files)
         self.worker.moveToThread(self.thread)
 
         self.thread.started.connect(self.worker.run)
