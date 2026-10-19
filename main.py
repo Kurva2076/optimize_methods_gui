@@ -5,8 +5,8 @@ from typing import Optional
 
 import numpy as np
 
-from PySide6.QtCore import QObject, QThread, Signal, Slot, Qt
-from PySide6.QtGui import QCloseEvent, QColor
+from PySide6.QtCore import QObject, QThread, Signal, Slot, QSize, Qt
+from PySide6.QtGui import QIcon, QCloseEvent, QColor
 from PySide6.QtWidgets import (
     QApplication, QFileDialog, QFrame, QGraphicsDropShadowEffect,
     QHBoxLayout, QLabel, QMainWindow, QMessageBox, QPushButton,
@@ -146,7 +146,8 @@ class MainWindow(QMainWindow):
         self.output_label: Optional[QLabel] = None
         self.output_button: Optional[QPushButton] = None
         self.optimize_button: Optional[QPushButton] = None
-        self.status_label: Optional[QLabel] = None
+        self.status_title: Optional[QLabel] = None
+        self.status_desc: Optional[QLabel] = None
 
         self.init_ui()
 
@@ -176,8 +177,12 @@ class MainWindow(QMainWindow):
         left_layout.setSpacing(10)
 
         title_layout = QHBoxLayout()
-        icon_label = QLabel("🗀")
-        icon_label.setStyleSheet("font-size: 24px; color: #171717;")
+
+        icon_label = QLabel()
+        folder_icon = QIcon(str(Path(__file__).parent / "images" / "folder.svg"))
+        icon_label.setPixmap(folder_icon.pixmap(QSize(32, 32)))
+
+
         title_label = QLabel("1. Выбор файлов")
         title_label.setObjectName('cardTitle')
         title_layout.addWidget(icon_label)
@@ -249,8 +254,9 @@ class MainWindow(QMainWindow):
         c2_layout.setSpacing(10)
 
         c2_title_layout = QHBoxLayout()
-        c2_icon = QLabel("⚙\ufe0e")
-        c2_icon.setStyleSheet("font-family: 'Segoe UI Symbol', 'Arial'; font-size: 24px; color: #171717;")
+        c2_icon = QLabel()
+        gear_icon = QIcon(str(Path(__file__).parent / "images" / "gear.svg"))
+        c2_icon.setPixmap(gear_icon.pixmap(QSize(32, 32)))
         c2_title = QLabel("2. Параметры сохранения")
         c2_title.setObjectName('cardTitle')
         c2_title_layout.addWidget(c2_icon)
@@ -310,13 +316,38 @@ class MainWindow(QMainWindow):
         c3_layout.addWidget(c3_desc)
         c3_layout.addSpacing(5)
 
-        self.status_label = QLabel("Готово к работе\nЗагрузите файлы и запустите оптимизацию данных.")
-        self.status_label.setObjectName('statusLabel')
-        self.status_label.setAlignment(Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter)
-        self.status_label.setWordWrap(True)
-        self.status_label.setMinimumHeight(70)
-        self.apply_shadow(self.status_label, blur=15, y_offset=3, alpha=25)
-        c3_layout.addWidget(self.status_label)
+        status_container = QFrame()
+        status_container.setObjectName('statusContainer')
+        status_container.setMinimumHeight(80)
+
+        status_container_layout = QHBoxLayout(status_container)
+        status_container_layout.setContentsMargins(20, 15, 20, 15)
+        status_container_layout.setSpacing(15)
+
+        status_icon_label = QLabel()
+        status_icon = QIcon(str(Path(__file__).parent / "images" / "circle.svg"))
+        status_icon_label.setPixmap(status_icon.pixmap(QSize(32, 32)))
+        status_icon_label.setAlignment(Qt.AlignmentFlag.AlignVCenter)
+
+        status_text_layout = QVBoxLayout()
+        status_text_layout.setSpacing(2)
+        status_text_layout.setAlignment(Qt.AlignmentFlag.AlignVCenter)
+
+        self.status_title = QLabel("Ожидает запуска")
+        self.status_title.setObjectName('statusTitle')
+
+        self.status_desc = QLabel("Загрузите файлы и запустите оптимизацию данных.")
+        self.status_desc.setObjectName('statusDesc')
+        self.status_desc.setWordWrap(True)
+
+        status_text_layout.addWidget(self.status_title)
+        status_text_layout.addWidget(self.status_desc)
+
+        status_container_layout.addWidget(status_icon_label)
+        status_container_layout.addLayout(status_text_layout, 1)
+
+        self.apply_shadow(status_container, blur=15, y_offset=3, alpha=25)
+        c3_layout.addWidget(status_container, 1)
 
         c3_layout.addStretch(1)
         self.apply_shadow(card3)
@@ -377,7 +408,8 @@ class MainWindow(QMainWindow):
         self.input_button.setEnabled(False)
         self.output_button.setEnabled(False)
 
-        self.status_label.setText('Подготовка к обработке...')
+        self.status_title.setText("Подготовка к обработке...")
+        self.status_desc.setText("Инициализация процесса...")
 
         self.thread = QThread(self)
         self.worker = OptimizationWorker(self.input_dir, self.output_dir)
@@ -399,26 +431,34 @@ class MainWindow(QMainWindow):
 
     @Slot(str)
     def update_progress(self, message: str) -> None:
-        self.status_label.setText(message)
+        self.status_title.setText("Идет обработка...")
+        self.status_desc.setText(message)
 
     @Slot(int, int, str)
     def optimization_finished(self, success_count: int, total: int, report: str) -> None:
         if success_count == total:
-            self.status_label.setText('Оптимизация успешно завершена.')
+            self.status_title.setText("Оптимизация успешно завершена")
+            self.status_desc.setText(f"Обработано файлов: {success_count} из {total}.")
             QMessageBox.information(
-                self, 'Готово',
-                f'Успешно обработано файлов: {success_count} из {total}.\n\nРезультаты сохранены в:\n{self.output_dir}'
+                self,
+                'Готово',
+                f'Успешно обработано файлов: {success_count} из {total}.\n\n'
+                f'Результаты сохранены в:\n{self.output_dir}',
             )
         else:
-            self.status_label.setText('Обработка завершена с ошибками.')
+            self.status_title.setText("Обработка завершена с ошибками")
+            self.status_desc.setText(f"Успешно: {success_count} из {total}. Ошибки в окне сообщения.")
             QMessageBox.warning(
-                self, 'Обработка завершена не полностью',
-                f'Успешно обработано файлов: {success_count} из {total}.{report}\n\nРезультаты находятся в:\n{self.output_dir}'
+                self,
+                'Обработка завершена не полностью',
+                f'Успешно обработано файлов: {success_count} из {total}.'
+                f'{report}\n\nРезультаты находятся в:\n{self.output_dir}',
             )
 
     @Slot(str)
     def optimization_failed(self, error: str) -> None:
-        self.status_label.setText('Не удалось выполнить оптимизацию.')
+        self.status_title.setText("Не удалось выполнить оптимизацию")
+        self.status_desc.setText("Проверьте исходные файлы и попробуйте снова.")
         QMessageBox.critical(self, 'Ошибка оптимизации', error)
 
     @Slot()

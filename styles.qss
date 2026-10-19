@@ -22,7 +22,7 @@ QLabel#cardDescription {
     font-size: 13px;
 }
 
-QLabel#pathLabel, QLabel#statusLabel {
+QLabel#pathLabel {
     background-color: #F5F7FA;
     border: 1px solid #E5E9F0;
     border-radius: 9px;
@@ -30,6 +30,25 @@ QLabel#pathLabel, QLabel#statusLabel {
     color: #343A46;
     font-size: 13px;
     font-weight: 500;
+}
+
+QFrame#statusContainer {
+    background-color: #F5F7FA;
+    border: 1px solid #E5E9F0;
+    border-radius: 10px;
+}
+
+QLabel#statusTitle {
+    background-color: transparent;
+    color: #171717;
+    font-size: 14px;
+    font-weight: 600;
+}
+
+QLabel#statusDesc {
+    background-color: transparent;
+    color: #737B89;
+    font-size: 12px;
 }
 
 QFrame#dropZone {
