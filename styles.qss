@@ -145,3 +145,19 @@ QMessageBox QPushButton:hover {
 QMessageBox QPushButton:pressed {
     background-color: #254BC4;
 }
+
+QProgressBar {
+    background-color: #E8EDF4;
+    border: 1px solid #E5E9F0;
+    border-radius: 5px;
+    min-height: 24px;
+    color: #343A46;
+    font-weight: 600;
+    font-size: 12px;
+    padding: 0;
+}
+
+QProgressBar::chunk {
+    background-color: #3867F5;
+    border-radius: 4px;
+}

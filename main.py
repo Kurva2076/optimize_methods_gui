@@ -11,12 +11,13 @@ from PySide6.QtWidgets import (
     QApplication, QFileDialog, QFrame, QGraphicsDropShadowEffect,
     QHBoxLayout, QLabel, QMainWindow, QMessageBox, QPushButton,
     QVBoxLayout, QWidget, QTableWidget, QTableWidgetItem, QHeaderView,
-    QProgressBar
 )
 
 from lib.data.xyz_loader import XYZLoader
 from lib.data.xyz_saver import save_points_to_xyz
 from lib.optimization.filtering import clean, ALS_PRESET
+
+from ui_components import StyledProgressBar
 
 
 class OptimizationWorker(QObject):
@@ -251,7 +252,7 @@ class MainWindow(QMainWindow):
         self.status_icon_pixmap: QPixmap
 
         self.status_icon_label: RotatingIcon
-        self.progress_bar: QProgressBar
+        self.progress_bar: StyledProgressBar
 
         self.processing_times: dict[str, float] = {}
 
@@ -466,11 +467,11 @@ class MainWindow(QMainWindow):
         self.apply_shadow(status_container, blur=15, y_offset=3, alpha=25)
         c3_layout.addWidget(status_container)
 
-        self.progress_bar = QProgressBar()
+        self.progress_bar = StyledProgressBar()
+        self.progress_bar.setFixedHeight(25)
         self.progress_bar.setRange(0, 100)
         self.progress_bar.setValue(0)
         self.progress_bar.setFormat('Ожидание: %p%')
-        self.progress_bar.setMinimumHeight(18)
         c3_layout.addWidget(self.progress_bar)
 
         c3_layout.addStretch(1)
