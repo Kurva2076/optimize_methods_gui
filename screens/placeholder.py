@@ -19,12 +19,6 @@ class PlaceholderScreen(BaseScreen):
         layout.addWidget(card, 1)
 
 
-class ParameterSelectionScreen(PlaceholderScreen):
-    step_title = 'Подбор параметров'
-    title = 'Подбор параметров'
-    subtitle = 'Подберите параметры для обучения модели.'
-
-
 class TrainingScreen(PlaceholderScreen):
     step_title = 'Обучение'
     title = 'Обучение модели'

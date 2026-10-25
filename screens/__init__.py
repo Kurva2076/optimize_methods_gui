@@ -1,10 +1,6 @@
 from screens.base import BaseScreen
-from screens.placeholder import (
-    AggregationScreen,
-    ParameterSelectionScreen,
-    SavingScreen,
-    TrainingScreen,
-)
+from screens.parameter_selection import ParameterSelectionScreen
+from screens.placeholder import AggregationScreen, SavingScreen, TrainingScreen
 from screens.preprocessing import PreprocessingScreen
 
 
