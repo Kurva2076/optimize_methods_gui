@@ -1,16 +1,18 @@
 import sys
 import os
+import time
 from pathlib import Path
 from typing import Optional
 
 import numpy as np
 
-from PySide6.QtCore import QObject, QThread, Signal, Slot, QSize, Qt
-from PySide6.QtGui import QIcon, QCloseEvent, QColor
+from PySide6.QtCore import QObject, QThread, Signal, Slot, QSize, Qt, QTimer
+from PySide6.QtGui import QIcon, QCloseEvent, QColor, QPixmap, QPainter
 from PySide6.QtWidgets import (
     QApplication, QFileDialog, QFrame, QGraphicsDropShadowEffect,
     QHBoxLayout, QLabel, QMainWindow, QMessageBox, QPushButton,
-    QVBoxLayout, QWidget, QTableWidget, QTableWidgetItem, QHeaderView
+    QVBoxLayout, QWidget, QTableWidget, QTableWidgetItem, QHeaderView,
+    QProgressBar
 )
 
 from lib.data.xyz_loader import XYZLoader
@@ -19,11 +21,17 @@ from lib.optimization.filtering import clean, ALS_PRESET
 
 
 class OptimizationWorker(QObject):
-    progress = Signal(str)
+    progress = Signal(str, int, int)
+    file_processed = Signal(str, float)
     finished = Signal(int, int, str)
     failed = Signal(str)
 
-    def __init__(self, input_dir: str, output_dir: str, exclude_files: list[Path] = None) -> None:
+    def __init__(
+        self,
+        input_dir: str,
+        output_dir: str,
+        exclude_files: list[Path] | None = None,
+    ) -> None:
         super().__init__()
         self.input_dir = Path(input_dir)
         self.output_dir = Path(output_dir)
@@ -34,25 +42,48 @@ class OptimizationWorker(QObject):
         try:
             files = sorted(
                 path for path in self.input_dir.iterdir()
-                if path.is_file() and path.suffix.lower() == '.xyz' and path not in self.exclude_files
+                if path.is_file()
+                and path.suffix.lower() == '.xyz'
+                and path not in self.exclude_files
             )
+
             if not files:
-                raise ValueError('В папке нет доступных файлов .xyz для обработки.')
+                raise ValueError(
+                    'В папке нет доступных файлов .xyz для обработки.'
+                )
 
             self.output_dir.mkdir(parents=True, exist_ok=True)
 
             success_count = 0
             error_messages = []
+
             for index, file_path in enumerate(files, start=1):
-                self.progress.emit(f'Обработка: {file_path.name}')
+                started_at = time.perf_counter()
+
+                self.progress.emit(
+                    f'Обработка: {file_path.name}',
+                    index - 1,
+                    len(files)
+                )
 
                 try:
-                    classes, points = XYZLoader(str(file_path)).load(dtype=np.float64)
-                    result = clean(points, classes, steps=ALS_PRESET)
+                    classes, points = XYZLoader(
+                        str(file_path)
+                    ).load(dtype=np.float64)
+
+                    result = clean(
+                        points,
+                        classes,
+                        steps=ALS_PRESET
+                    )
 
                     clean_classes = classes[result.keep]
                     clean_points = points[result.keep]
-                    clean_path = self.output_dir / f'{file_path.stem}_clean.xyz'
+
+                    clean_path = (
+                        self.output_dir /
+                        f'{file_path.stem}_clean.xyz'
+                    )
 
                     save_points_to_xyz(
                         points=clean_points,
@@ -61,8 +92,13 @@ class OptimizationWorker(QObject):
                     )
 
                     noise_mask = ~result.keep
+
                     if np.any(noise_mask):
-                        noise_path = self.output_dir / f'{file_path.stem}_noise.xyz'
+                        noise_path = (
+                            self.output_dir /
+                            f'{file_path.stem}_noise.xyz'
+                        )
+
                         save_points_to_xyz(
                             points=points[noise_mask],
                             filepath=str(noise_path),
@@ -72,15 +108,80 @@ class OptimizationWorker(QObject):
                     success_count += 1
 
                 except Exception as error:
-                    error_messages.append(f'{file_path.name}: {error}')
+                    error_messages.append(
+                        f'{file_path.name}: {error}'
+                    )
 
-                self.progress.emit(f'Обработано файлов: {index} из {len(files)}')
+                finally:
+                    elapsed = time.perf_counter() - started_at
+                    self.file_processed.emit(
+                        str(file_path),
+                        elapsed
+                    )
 
-            report = '\n\nОшибки:\n' + '\n'.join(error_messages) if error_messages else ''
-            self.finished.emit(success_count, len(files), report)
+                self.progress.emit(
+                    f'Обработано файлов: {index} из {len(files)}',
+                    index,
+                    len(files)
+                )
 
-        except Exception as e:
-            self.failed.emit(str(e))
+            report = (
+                '\n\nОшибки:\n' + '\n'.join(error_messages)
+                if error_messages else ''
+            )
+
+            self.finished.emit(
+                success_count,
+                len(files),
+                report
+            )
+
+        except Exception as error:
+            self.failed.emit(str(error))
+
+
+class RotatingIcon(QWidget):
+    """Вращающаяся иконка фиксированного размера."""
+
+    def __init__(
+        self,
+        pixmap: QPixmap,
+        parent=None
+    ) -> None:
+        super().__init__(parent)
+
+        self.pixmap = pixmap
+        self.angle = 0
+
+        self.setFixedSize(32, 32)
+
+    def set_angle(self, angle: int) -> None:
+        self.angle = angle % 360
+        self.update()
+
+    def paintEvent(self, event) -> None:
+        if self.pixmap is None or self.pixmap.isNull():
+            return
+
+        painter = QPainter(self)
+
+        painter.setRenderHint(
+            QPainter.RenderHint.SmoothPixmapTransform,
+            True
+        )
+
+        painter.translate(
+            self.width() / 2,
+            self.height() / 2
+        )
+
+        painter.rotate(self.angle)
+
+        painter.drawPixmap(
+            -self.pixmap.width() / 2,
+            -self.pixmap.height() / 2,
+            self.pixmap
+        )
 
 
 class DropZone(QFrame):
@@ -147,6 +248,23 @@ class MainWindow(QMainWindow):
         self.optimize_button: Optional[QPushButton] = None
         self.status_title: Optional[QLabel] = None
         self.status_desc: Optional[QLabel] = None
+        self.status_icon_pixmap: Optional[QPixmap] = None
+
+        self.status_icon_label: Optional[RotatingIcon] = None
+        self.progress_bar: Optional[QProgressBar] = None
+
+        self.processing_times: dict[str, float] = {}
+
+        self.rotation_angle = 0
+
+        self.rotation_timer = QTimer(self)
+        self.rotation_timer.setTimerType(
+            Qt.TimerType.PreciseTimer
+        )
+        self.rotation_timer.setInterval(16)
+        self.rotation_timer.timeout.connect(
+            self.rotate_status_icon
+        )
 
         self.init_ui()
 
@@ -224,13 +342,14 @@ class MainWindow(QMainWindow):
         left_layout.addWidget(self.files_count_label)
 
         self.file_table = QTableWidget()
-        self.file_table.setColumnCount(4)
-        self.file_table.setHorizontalHeaderLabels(["Имя файла", "Формат", "Размер", ""])
+        self.file_table.setColumnCount(5)
+        self.file_table.setHorizontalHeaderLabels(["Имя файла", "Формат", "Размер", "Время обработки", ""])
 
         self.file_table.horizontalHeader().setSectionResizeMode(0, QHeaderView.ResizeMode.Stretch)
         self.file_table.horizontalHeader().setSectionResizeMode(1, QHeaderView.ResizeMode.ResizeToContents)
         self.file_table.horizontalHeader().setSectionResizeMode(2, QHeaderView.ResizeMode.ResizeToContents)
         self.file_table.horizontalHeader().setSectionResizeMode(3, QHeaderView.ResizeMode.ResizeToContents)
+        self.file_table.horizontalHeader().setSectionResizeMode(4, QHeaderView.ResizeMode.ResizeToContents)
 
         self.file_table.verticalHeader().setVisible(False)
         self.file_table.setShowGrid(False)
@@ -322,10 +441,10 @@ class MainWindow(QMainWindow):
         status_container_layout.setContentsMargins(20, 15, 20, 15)
         status_container_layout.setSpacing(15)
 
-        status_icon_label = QLabel()
+        self.status_icon_label = QLabel()
         status_icon = QIcon(str(Path(__file__).parent / "images" / "circle.svg"))
-        status_icon_label.setPixmap(status_icon.pixmap(QSize(32, 32)))
-        status_icon_label.setAlignment(Qt.AlignmentFlag.AlignVCenter)
+        self.status_icon_pixmap = status_icon.pixmap(QSize(32, 32))
+        self.status_icon_label = RotatingIcon(self.status_icon_pixmap)
 
         status_text_layout = QVBoxLayout()
         status_text_layout.setSpacing(2)
@@ -341,11 +460,18 @@ class MainWindow(QMainWindow):
         status_text_layout.addWidget(self.status_title)
         status_text_layout.addWidget(self.status_desc)
 
-        status_container_layout.addWidget(status_icon_label)
+        status_container_layout.addWidget(self.status_icon_label)
         status_container_layout.addLayout(status_text_layout, 1)
 
         self.apply_shadow(status_container, blur=15, y_offset=3, alpha=25)
         c3_layout.addWidget(status_container)
+
+        self.progress_bar = QProgressBar()
+        self.progress_bar.setRange(0, 100)
+        self.progress_bar.setValue(0)
+        self.progress_bar.setFormat("Ожидание: %p%")
+        self.progress_bar.setMinimumHeight(18)
+        c3_layout.addWidget(self.progress_bar)
 
         c3_layout.addStretch(1)
         self.apply_shadow(card3)
@@ -396,12 +522,18 @@ class MainWindow(QMainWindow):
             item_size.setForeground(QColor("#171717"))
             self.file_table.setItem(row, 2, item_size)
 
+            elapsed = self.processing_times.get(str(f))
+            time_text = f"{elapsed:.2f} с" if elapsed is not None else "—"
+            item_time = QTableWidgetItem(time_text)
+            item_time.setForeground(QColor("#171717"))
+            self.file_table.setItem(row, 3, item_time)
+
             btn = QPushButton("✕")
             btn.setStyleSheet(
                 "background: transparent; color: #171717; font-weight: bold; border: none; font-size: 14px;")
             btn.setCursor(Qt.CursorShape.PointingHandCursor)
             btn.clicked.connect(lambda checked=False, p=f: self.remove_file(p))
-            self.file_table.setCellWidget(row, 3, btn)
+            self.file_table.setCellWidget(row, 4, btn)
 
     def select_output_dir(self) -> None:
         directory = QFileDialog.getExistingDirectory(self, 'Выберите папку для результатов')
@@ -438,6 +570,11 @@ class MainWindow(QMainWindow):
         self.output_button.setEnabled(False)
         self.status_title.setText("Подготовка к обработке...")
         self.status_desc.setText("Инициализация процесса...")
+        self.progress_bar.setValue(0)
+        self.progress_bar.setFormat("Обработка: %p%")
+        self.rotation_angle = 0
+        self.status_icon_label.set_angle(0)
+        self.rotation_timer.start()
 
         self.thread = QThread(self)
         self.worker = OptimizationWorker(self.input_dir, self.output_dir, self.excluded_files)
@@ -445,6 +582,7 @@ class MainWindow(QMainWindow):
 
         self.thread.started.connect(self.worker.run)
         self.worker.progress.connect(self.update_progress)
+        self.worker.file_processed.connect(self.update_file_processing_time)
         self.worker.finished.connect(self.optimization_finished)
         self.worker.failed.connect(self.optimization_failed)
 
@@ -457,13 +595,31 @@ class MainWindow(QMainWindow):
 
         self.thread.start()
 
-    @Slot(str)
-    def update_progress(self, message: str) -> None:
+    @Slot(str, int, int)
+    def update_progress(self, message: str, completed: int, total: int) -> None:
         self.status_title.setText("Идет обработка...")
         self.status_desc.setText(message)
+        self.progress_bar.setValue(round(completed / total * 100) if total else 0)
+
+    @Slot(str, float)
+    def update_file_processing_time(self, file_path: str, elapsed: float) -> None:
+        self.processing_times[file_path] = elapsed
+        self.update_table()
+
+    def rotate_status_icon(self) -> None:
+        self.rotation_angle = (self.rotation_angle + 6) % 360
+        self.status_icon_label.set_angle(self.rotation_angle)
+
+    def stop_status_animation(self) -> None:
+        self.rotation_timer.stop()
+        self.rotation_angle = 0
+        self.status_icon_label.set_angle(0)
 
     @Slot(int, int, str)
     def optimization_finished(self, success_count: int, total: int, report: str) -> None:
+        self.stop_status_animation()
+        self.progress_bar.setValue(100)
+        self.progress_bar.setFormat("Завершено: %p%")
         if success_count == total:
             self.status_title.setText("Оптимизация успешно завершена")
             self.status_desc.setText(f"Обработано файлов: {success_count} из {total}.")
@@ -485,6 +641,8 @@ class MainWindow(QMainWindow):
 
     @Slot(str)
     def optimization_failed(self, error: str) -> None:
+        self.stop_status_animation()
+        self.progress_bar.setFormat("Ошибка обработки")
         self.status_title.setText("Не удалось выполнить оптимизацию")
         self.status_desc.setText("Проверьте исходные файлы и попробуйте снова.")
         QMessageBox.critical(self, 'Ошибка оптимизации', error)
