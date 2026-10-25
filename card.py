@@ -1,8 +1,6 @@
 from PySide6.QtCore import QSize
 from PySide6.QtGui import QColor
-from PySide6.QtWidgets import (
-    QFrame, QGraphicsDropShadowEffect, QHBoxLayout, QLabel, QVBoxLayout, QWidget,
-)
+from PySide6.QtWidgets import QFrame, QGraphicsDropShadowEffect, QHBoxLayout, QLabel, QVBoxLayout, QWidget
 
 from resources import icon
 
@@ -15,6 +13,12 @@ def apply_shadow(widget: QWidget, blur: int = 22, y_offset: int = 5, alpha: int 
     shadow.setYOffset(y_offset)
     shadow.setColor(QColor(25, 40, 65, alpha))
     widget.setGraphicsEffect(shadow)
+
+
+def repolish(widget: QWidget) -> None:
+    """Заставляет Qt перечитать стили после смены dynamic-property (например, selected)."""
+    widget.style().unpolish(widget)
+    widget.style().polish(widget)
 
 
 def create_card(
