@@ -2,7 +2,6 @@ import sys
 import os
 import time
 from pathlib import Path
-from typing import Optional
 
 import numpy as np
 
@@ -178,8 +177,8 @@ class RotatingIcon(QWidget):
         painter.rotate(self.angle)
 
         painter.drawPixmap(
-            -self.pixmap.width() / 2,
-            -self.pixmap.height() / 2,
+            -(self.pixmap.width() // 2),
+            -(self.pixmap.height() // 2),
             self.pixmap
         )
 
@@ -195,20 +194,20 @@ class DropZone(QFrame):
     def dragEnterEvent(self, event):
         if event.mimeData().hasUrls():
             event.acceptProposedAction()
-            self.setProperty("drag_active", "true")
+            self.setProperty('drag_active', 'true')
             self.style().unpolish(self)
             self.style().polish(self)
         else:
             event.ignore()
 
     def dragLeaveEvent(self, event):
-        self.setProperty("drag_active", "false")
+        self.setProperty('drag_active', 'false')
         self.style().unpolish(self)
         self.style().polish(self)
         event.accept()
 
     def dropEvent(self, event):
-        self.setProperty("drag_active", "false")
+        self.setProperty('drag_active', 'false')
         self.style().unpolish(self)
         self.style().polish(self)
 
@@ -220,6 +219,7 @@ class DropZone(QFrame):
             if self.callback:
                 self.callback(target_dir)
         event.acceptProposedAction()
+
 
 class MainWindow(QMainWindow):
     def __init__(self) -> None:
@@ -237,21 +237,21 @@ class MainWindow(QMainWindow):
         self.all_files: list[Path] = []
         self.excluded_files: list[Path] = []
         self.output_dir = ''
-        self.thread: Optional[QThread] = None
-        self.worker: Optional[OptimizationWorker] = None
+        self.thread: QThread
+        self.worker: OptimizationWorker
 
-        self.input_button: Optional[QPushButton] = None
-        self.files_count_label: Optional[QLabel] = None
-        self.file_table: Optional[QTableWidget] = None
-        self.output_label: Optional[QLabel] = None
-        self.output_button: Optional[QPushButton] = None
-        self.optimize_button: Optional[QPushButton] = None
-        self.status_title: Optional[QLabel] = None
-        self.status_desc: Optional[QLabel] = None
-        self.status_icon_pixmap: Optional[QPixmap] = None
+        self.input_button: QPushButton
+        self.files_count_label: QLabel
+        self.file_table: QTableWidget
+        self.output_label: QLabel
+        self.output_button: QPushButton
+        self.optimize_button: QPushButton
+        self.status_title: QLabel
+        self.status_desc: QLabel
+        self.status_icon_pixmap: QPixmap
 
-        self.status_icon_label: Optional[RotatingIcon] = None
-        self.progress_bar: Optional[QProgressBar] = None
+        self.status_icon_label: RotatingIcon
+        self.progress_bar: QProgressBar
 
         self.processing_times: dict[str, float] = {}
 
@@ -296,18 +296,17 @@ class MainWindow(QMainWindow):
         title_layout = QHBoxLayout()
 
         icon_label = QLabel()
-        folder_icon = QIcon(str(Path(__file__).parent / "images" / "folder.svg"))
+        folder_icon = QIcon(str(Path(__file__).parent / 'images' / 'folder.svg'))
         icon_label.setPixmap(folder_icon.pixmap(QSize(32, 32)))
 
-
-        title_label = QLabel("1. Выбор файлов")
+        title_label = QLabel('1. Выбор файлов')
         title_label.setObjectName('cardTitle')
         title_layout.addWidget(icon_label)
         title_layout.addWidget(title_label)
         title_layout.addStretch()
         left_layout.addLayout(title_layout)
 
-        desc_label = QLabel("Выберите папку с исходными данными (можно несколько файлов).")
+        desc_label = QLabel('Выберите папку с исходными данными (можно несколько файлов).')
         desc_label.setObjectName('cardDescription')
         left_layout.addWidget(desc_label)
         left_layout.addSpacing(10)
@@ -318,12 +317,12 @@ class MainWindow(QMainWindow):
         drop_layout = QVBoxLayout(drop_zone)
         drop_layout.setAlignment(Qt.AlignmentFlag.AlignCenter)
 
-        drop_text1 = QLabel("Перетащите папку сюда")
-        drop_text1.setStyleSheet("font-size: 18px; font-weight: 600; color: #171717;")
-        drop_text2 = QLabel("или выберите вручную")
-        drop_text2.setStyleSheet("font-size: 13px; color: #737B89; margin-bottom: 10px;")
+        drop_text1 = QLabel('Перетащите папку сюда')
+        drop_text1.setStyleSheet('font-size: 18px; font-weight: 600; color: #171717;')
+        drop_text2 = QLabel('или выберите вручную')
+        drop_text2.setStyleSheet('font-size: 13px; color: #737B89; margin-bottom: 10px;')
 
-        self.input_button = QPushButton("Выберите папку")
+        self.input_button = QPushButton('Выберите папку')
         self.input_button.setObjectName('primaryButton')
         self.input_button.setFixedWidth(180)
         self.input_button.clicked.connect(self.select_input_dir)
@@ -337,13 +336,13 @@ class MainWindow(QMainWindow):
 
         self.apply_shadow(drop_zone, blur=15, y_offset=3, alpha=25)
 
-        self.files_count_label = QLabel("Выбранные файлы (0)")
-        self.files_count_label.setStyleSheet("font-weight: bold; font-size: 14px; color: #171717;")
+        self.files_count_label = QLabel('Выбранные файлы (0)')
+        self.files_count_label.setStyleSheet('font-weight: bold; font-size: 14px; color: #171717;')
         left_layout.addWidget(self.files_count_label)
 
         self.file_table = QTableWidget()
         self.file_table.setColumnCount(5)
-        self.file_table.setHorizontalHeaderLabels(["Имя файла", "Формат", "Размер", "Время обработки", ""])
+        self.file_table.setHorizontalHeaderLabels(['Имя файла', 'Формат', 'Размер', 'Время обработки', ''])
 
         self.file_table.horizontalHeader().setSectionResizeMode(0, QHeaderView.ResizeMode.Stretch)
         self.file_table.horizontalHeader().setSectionResizeMode(1, QHeaderView.ResizeMode.ResizeToContents)
@@ -372,31 +371,31 @@ class MainWindow(QMainWindow):
 
         c2_title_layout = QHBoxLayout()
         c2_icon = QLabel()
-        gear_icon = QIcon(str(Path(__file__).parent / "images" / "gear.svg"))
+        gear_icon = QIcon(str(Path(__file__).parent / 'images' / 'gear.svg'))
         c2_icon.setPixmap(gear_icon.pixmap(QSize(32, 32)))
-        c2_title = QLabel("2. Параметры сохранения")
+        c2_title = QLabel('2. Параметры сохранения')
         c2_title.setObjectName('cardTitle')
         c2_title_layout.addWidget(c2_icon)
         c2_title_layout.addWidget(c2_title)
         c2_title_layout.addStretch()
         c2_layout.addLayout(c2_title_layout)
 
-        c2_desc = QLabel("Настройки сохранения данных.")
+        c2_desc = QLabel('Настройки сохранения данных.')
         c2_desc.setObjectName('cardDescription')
         c2_layout.addWidget(c2_desc)
         c2_layout.addSpacing(5)
 
-        c2_path_label = QLabel("Папка для хранения результатов")
-        c2_path_label.setStyleSheet("font-size: 13px; color: #171717;")
+        c2_path_label = QLabel('Папка для хранения результатов')
+        c2_path_label.setStyleSheet('font-size: 13px; color: #171717;')
         c2_layout.addWidget(c2_path_label)
 
         path_row = QHBoxLayout()
-        self.output_label = QLabel("Папка не выбрана")
+        self.output_label = QLabel('Папка не выбрана')
         self.output_label.setObjectName('pathLabel')
 
         self.apply_shadow(self.output_label, blur=12, y_offset=2, alpha=25)
 
-        self.output_button = QPushButton("⌕")
+        self.output_button = QPushButton('⌕')
         self.output_button.setObjectName('iconButton')
         self.output_button.setFixedSize(38, 38)
         self.output_button.clicked.connect(self.select_output_dir)
@@ -406,7 +405,7 @@ class MainWindow(QMainWindow):
         c2_layout.addLayout(path_row)
         c2_layout.addSpacing(10)
 
-        self.optimize_button = QPushButton("Оптимизировать данные")
+        self.optimize_button = QPushButton('Оптимизировать данные')
         self.optimize_button.setObjectName('primaryButton')
         self.optimize_button.setMinimumHeight(50)
         self.optimize_button.clicked.connect(self.start_optimization)
@@ -422,13 +421,13 @@ class MainWindow(QMainWindow):
         c3_layout.setSpacing(10)
 
         c3_title_layout = QHBoxLayout()
-        c3_title = QLabel("3. Статус обработки")
+        c3_title = QLabel('3. Статус обработки')
         c3_title.setObjectName('cardTitle')
         c3_title_layout.addWidget(c3_title)
         c3_title_layout.addStretch()
         c3_layout.addLayout(c3_title_layout)
 
-        c3_desc = QLabel("Здесь будет отображаться ход выполнения и результат.")
+        c3_desc = QLabel('Здесь будет отображаться ход выполнения и результат.')
         c3_desc.setObjectName('cardDescription')
         c3_layout.addWidget(c3_desc)
         c3_layout.addSpacing(5)
@@ -441,8 +440,7 @@ class MainWindow(QMainWindow):
         status_container_layout.setContentsMargins(20, 15, 20, 15)
         status_container_layout.setSpacing(15)
 
-        self.status_icon_label = QLabel()
-        status_icon = QIcon(str(Path(__file__).parent / "images" / "circle.svg"))
+        status_icon = QIcon(str(Path(__file__).parent / 'images' / 'circle.svg'))
         self.status_icon_pixmap = status_icon.pixmap(QSize(32, 32))
         self.status_icon_label = RotatingIcon(self.status_icon_pixmap)
 
@@ -450,10 +448,10 @@ class MainWindow(QMainWindow):
         status_text_layout.setSpacing(2)
         status_text_layout.setAlignment(Qt.AlignmentFlag.AlignVCenter)
 
-        self.status_title = QLabel("Ожидает запуска")
+        self.status_title = QLabel('Ожидает запуска')
         self.status_title.setObjectName('statusTitle')
 
-        self.status_desc = QLabel("Загрузите файлы и запустите оптимизацию данных.")
+        self.status_desc = QLabel('Загрузите файлы и запустите оптимизацию данных.')
         self.status_desc.setObjectName('statusDesc')
         self.status_desc.setWordWrap(True)
 
@@ -469,7 +467,7 @@ class MainWindow(QMainWindow):
         self.progress_bar = QProgressBar()
         self.progress_bar.setRange(0, 100)
         self.progress_bar.setValue(0)
-        self.progress_bar.setFormat("Ожидание: %p%")
+        self.progress_bar.setFormat('Ожидание: %p%')
         self.progress_bar.setMinimumHeight(18)
         c3_layout.addWidget(self.progress_bar)
 
@@ -504,33 +502,33 @@ class MainWindow(QMainWindow):
         self.file_table.setRowCount(0)
         files_to_show = [f for f in self.all_files if f not in self.excluded_files]
 
-        self.files_count_label.setText(f"Выбранные файлы ({len(files_to_show)})")
+        self.files_count_label.setText(f'Выбранные файлы ({len(files_to_show)})')
 
         for row, f in enumerate(files_to_show):
             self.file_table.insertRow(row)
             size_mb = f.stat().st_size / (1024 * 1024)
 
             item_name = QTableWidgetItem(f.name)
-            item_name.setForeground(QColor("#171717"))
+            item_name.setForeground(QColor('#171717'))
             self.file_table.setItem(row, 0, item_name)
 
             item_format = QTableWidgetItem(f.suffix.lower())
-            item_format.setForeground(QColor("#171717"))
+            item_format.setForeground(QColor('#171717'))
             self.file_table.setItem(row, 1, item_format)
 
-            item_size = QTableWidgetItem(f"{size_mb:.1f} МБ")
-            item_size.setForeground(QColor("#171717"))
+            item_size = QTableWidgetItem(f'{size_mb:.1f} МБ')
+            item_size.setForeground(QColor('#171717'))
             self.file_table.setItem(row, 2, item_size)
 
             elapsed = self.processing_times.get(str(f))
-            time_text = f"{elapsed:.2f} с" if elapsed is not None else "—"
+            time_text = f'{elapsed:.2f} с' if elapsed is not None else '—'
             item_time = QTableWidgetItem(time_text)
-            item_time.setForeground(QColor("#171717"))
+            item_time.setForeground(QColor('#171717'))
             self.file_table.setItem(row, 3, item_time)
 
-            btn = QPushButton("✕")
+            btn = QPushButton('✕')
             btn.setStyleSheet(
-                "background: transparent; color: #171717; font-weight: bold; border: none; font-size: 14px;")
+                'background: transparent; color: #171717; font-weight: bold; border: none; font-size: 14px;')
             btn.setCursor(Qt.CursorShape.PointingHandCursor)
             btn.clicked.connect(lambda checked=False, p=f: self.remove_file(p))
             self.file_table.setCellWidget(row, 4, btn)
@@ -568,10 +566,10 @@ class MainWindow(QMainWindow):
         self.optimize_button.setEnabled(False)
         self.input_button.setEnabled(False)
         self.output_button.setEnabled(False)
-        self.status_title.setText("Подготовка к обработке...")
-        self.status_desc.setText("Инициализация процесса...")
+        self.status_title.setText('Подготовка к обработке...')
+        self.status_desc.setText('Инициализация процесса...')
         self.progress_bar.setValue(0)
-        self.progress_bar.setFormat("Обработка: %p%")
+        self.progress_bar.setFormat('Обработка: %p%')
         self.rotation_angle = 0
         self.status_icon_label.set_angle(0)
         self.rotation_timer.start()
@@ -591,13 +589,12 @@ class MainWindow(QMainWindow):
 
         self.thread.finished.connect(self.worker.deleteLater)
         self.thread.finished.connect(self.thread.deleteLater)
-        self.thread.finished.connect(self.cleanup_thread)
 
         self.thread.start()
 
     @Slot(str, int, int)
     def update_progress(self, message: str, completed: int, total: int) -> None:
-        self.status_title.setText("Идет обработка...")
+        self.status_title.setText('Идет обработка...')
         self.status_desc.setText(message)
         self.progress_bar.setValue(round(completed / total * 100) if total else 0)
 
@@ -617,12 +614,15 @@ class MainWindow(QMainWindow):
 
     @Slot(int, int, str)
     def optimization_finished(self, success_count: int, total: int, report: str) -> None:
+        self.optimize_button.setEnabled(True)
+        self.input_button.setEnabled(True)
+        self.output_button.setEnabled(True)
         self.stop_status_animation()
         self.progress_bar.setValue(100)
-        self.progress_bar.setFormat("Завершено: %p%")
+        self.progress_bar.setFormat('Завершено: %p%')
         if success_count == total:
-            self.status_title.setText("Оптимизация успешно завершена")
-            self.status_desc.setText(f"Обработано файлов: {success_count} из {total}.")
+            self.status_title.setText('Оптимизация успешно завершена')
+            self.status_desc.setText(f'Обработано файлов: {success_count} из {total}.')
             QMessageBox.information(
                 self,
                 'Готово',
@@ -630,8 +630,8 @@ class MainWindow(QMainWindow):
                 f'Результаты сохранены в:\n{self.output_dir}',
             )
         else:
-            self.status_title.setText("Обработка завершена с ошибками")
-            self.status_desc.setText(f"Успешно: {success_count} из {total}. Ошибки в окне сообщения.")
+            self.status_title.setText('Обработка завершена с ошибками')
+            self.status_desc.setText(f'Успешно: {success_count} из {total}. Ошибки в окне сообщения.')
             QMessageBox.warning(
                 self,
                 'Обработка завершена не полностью',
@@ -641,20 +641,14 @@ class MainWindow(QMainWindow):
 
     @Slot(str)
     def optimization_failed(self, error: str) -> None:
-        self.stop_status_animation()
-        self.progress_bar.setFormat("Ошибка обработки")
-        self.status_title.setText("Не удалось выполнить оптимизацию")
-        self.status_desc.setText("Проверьте исходные файлы и попробуйте снова.")
-        QMessageBox.critical(self, 'Ошибка оптимизации', error)
-
-    @Slot()
-    def cleanup_thread(self) -> None:
-        self.thread = None
-        self.worker = None
-
         self.optimize_button.setEnabled(True)
         self.input_button.setEnabled(True)
         self.output_button.setEnabled(True)
+        self.stop_status_animation()
+        self.progress_bar.setFormat('Ошибка обработки')
+        self.status_title.setText('Не удалось выполнить оптимизацию')
+        self.status_desc.setText('Проверьте исходные файлы и попробуйте снова.')
+        QMessageBox.critical(self, 'Ошибка оптимизации', error)
 
     def closeEvent(self, event: QCloseEvent) -> None:
         if self.thread is not None and self.thread.isRunning():
