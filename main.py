@@ -395,9 +395,11 @@ class MainWindow(QMainWindow):
 
         self.apply_shadow(self.output_label, blur=12, y_offset=2, alpha=25)
 
-        self.output_button = QPushButton('⌕')
+        self.output_button = QPushButton()
         self.output_button.setObjectName('iconButton')
         self.output_button.setFixedSize(38, 38)
+        self.output_button.setIcon(QIcon(str(Path(__file__).parent / 'images' / 'loupe-search.svg')))
+        self.output_button.setIconSize(QSize(20, 20))
         self.output_button.clicked.connect(self.select_output_dir)
 
         path_row.addWidget(self.output_label, 1)
@@ -526,11 +528,15 @@ class MainWindow(QMainWindow):
             item_time.setForeground(QColor('#171717'))
             self.file_table.setItem(row, 3, item_time)
 
-            btn = QPushButton('✕')
-            btn.setStyleSheet(
-                'background: transparent; color: #171717; font-weight: bold; border: none; font-size: 14px;')
+            close_icon = QIcon(str(Path(__file__).parent / 'images' / 'close.svg'))
+
+            btn = QPushButton()
+            btn.setIcon(close_icon)
+            btn.setIconSize(QSize(14, 14))
+            btn.setStyleSheet('background: transparent; border: none;')
             btn.setCursor(Qt.CursorShape.PointingHandCursor)
             btn.clicked.connect(lambda checked=False, p=f: self.remove_file(p))
+
             self.file_table.setCellWidget(row, 4, btn)
 
     def select_output_dir(self) -> None:
