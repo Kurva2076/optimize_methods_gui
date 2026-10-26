@@ -7,6 +7,11 @@ QDialog#popupDialog {
     border-radius: 24px;
 }
 
+#popupContent,
+#popupFooter {
+    background: transparent;
+}
+
 #popupTitle {
     font-size: 26px;
     font-weight: 700;
@@ -30,6 +35,36 @@ QDialog#popupDialog {
 
 #popupClose:hover {
     background: #EEF1F7;
+}
+
+QScrollArea#popupScroll {
+    background: transparent;
+    border: none;
+    padding: 0 25px 0 0;
+}
+
+QScrollArea#popupScroll QScrollBar:vertical {
+    background: transparent;
+    width: 16px;
+    margin: 84px 0 12px 0;
+}
+
+QScrollArea#popupScroll QScrollBar::add-page:vertical,
+QScrollArea#popupScroll QScrollBar::sub-page:vertical {
+    background: #EDEDED;
+    margin: 0 5px;
+}
+
+QScrollArea#popupScroll QScrollBar::handle:vertical {
+    background: #D3D3D3;
+    border-radius: 0;
+    min-height: 40px;
+}
+
+QScrollArea#popupScroll QScrollBar::add-line:vertical,
+QScrollArea#popupScroll QScrollBar::sub-line:vertical {
+    height: 0;
+    background: transparent;
 }
 
 #sectionTitle {
@@ -110,49 +145,42 @@ QComboBox#algorithmCombo QAbstractItemView {
     background: transparent;
 }
 
-QScrollArea#paramScroll {
-    background: transparent;
-    border: none;
+#tableHeaderCell {
+    font-size: 15px;
+    font-weight: 700;
+    color: #0F0F10;
+    background: #FFFFFF;
+    border: 1px solid #DDE1EA;
+    border-right: none;
 }
 
-QScrollArea#paramScroll > QWidget > QWidget {
-    background: transparent;
+#tableHeaderCell[last="true"] {
+    border-right: 1px solid #DDE1EA;
 }
 
-#paramContainer {
-    background: transparent;
-}
-
-#paramScroll QScrollBar:vertical {
-    background: transparent;
-    width: 10px;
-    margin: 2px;
-}
-
-#paramScroll QScrollBar::handle:vertical {
-    background: #C9CED8;
-    border-radius: 4px;
-    min-height: 30px;
-}
-
-#paramScroll QScrollBar::add-line:vertical,
-#paramScroll QScrollBar::sub-line:vertical {
-    height: 0;
-}
-
-#paramLabel {
+#paramPurpose,
+#paramName,
+#paramType {
     font-size: 14px;
     color: #171717;
+    background: transparent;
+}
+
+#paramAllowed {
+    font-size: 14px;
+    color: #6B7894;
+    background: transparent;
 }
 
 QLineEdit#paramInput {
     background: #FFFFFF;
-    border: 1px solid #C9CED8;
+    border: 1px solid #D3D8E0;
     border-radius: 6px;
     padding: 0 10px;
-    min-height: 36px;
+    min-height: 34px;
     font-size: 14px;
     color: #171717;
+    placeholder-text-color: #9AA3B5;
 }
 
 QLineEdit#paramInput:focus {
@@ -162,11 +190,6 @@ QLineEdit#paramInput:focus {
 QLineEdit#paramInput[invalid="true"] {
     background: #FFF5F5;
     border: 1px solid #E5484D;
-}
-
-#paramHint {
-    font-size: 15px;
-    color: #6B7894;
 }
 
 #secondaryButton {
