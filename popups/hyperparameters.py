@@ -1,14 +1,38 @@
 from PySide6.QtCore import QSize, Qt, Signal
-from PySide6.QtGui import QMouseEvent
+from PySide6.QtGui import QColor, QMouseEvent, QPalette
 from PySide6.QtWidgets import (
-    QComboBox, QFrame, QGridLayout, QHBoxLayout, QLabel, QLineEdit, QMessageBox,
-    QPushButton, QScrollArea, QVBoxLayout, QWidget,
+    QComboBox, QFrame, QHBoxLayout, QLabel, QLineEdit, QMessageBox, QPushButton,
+    QSizePolicy, QVBoxLayout, QWidget,
 )
 
 from card import apply_shadow, repolish
-from hyperparams import ALGORITHMS, ALGORITHMS_BY_KEY, MODELS, MODELS_BY_KEY, ModelSpec, SearchConfig
+from hyperparams import ALGORITHMS, ALGORITHMS_BY_KEY, MODELS, MODELS_BY_KEY, ModelSpec, ParamSpec, SearchConfig
 from popups.base import BasePopup
 from resources import icon, image_path
+
+
+COLUMN_TITLES = ('Назначение', 'Параметр', 'Тип', 'Поле ввода', 'Возможное значение')
+COLUMN_STRETCH = (26, 30, 38, 40, 34)
+HEADER_HEIGHT = 40
+PLACEHOLDER_COLOR = QColor('#9AA3B5')
+
+
+def _table_row(widgets: list[QWidget], cell_margin: int) -> QWidget:
+    """Собирает строку таблицы: i-й виджет получает ширину по COLUMN_STRETCH[i]."""
+    row = QWidget()
+    layout = QHBoxLayout(row)
+    layout.setContentsMargins(0, 0, 0, 0)
+    layout.setSpacing(0)
+    for widget, stretch in zip(widgets, COLUMN_STRETCH):
+        cell = QWidget()
+        cell_layout = QHBoxLayout(cell)
+        cell_layout.setContentsMargins(cell_margin, 0, cell_margin, 0)
+        cell_layout.addWidget(widget, 0, Qt.AlignmentFlag.AlignVCenter)
+        policy = cell.sizePolicy()
+        policy.setHorizontalPolicy(QSizePolicy.Policy.Ignored)
+        cell.setSizePolicy(policy)
+        layout.addWidget(cell, stretch)
+    return row
 
 
 class ModelCard(QFrame):
@@ -53,7 +77,7 @@ class ModelCard(QFrame):
 
 class HyperparameterDialog(BasePopup):
     """
-    Окно «Подбор гиперпараметров»: модель → алгоритм → значения параметров.
+    Окно «Подбор гиперпараметров»: модель → алгоритм → таблица значений параметров.
     После accept() результат лежит в self.config (SearchConfig).
     """
 
@@ -71,8 +95,6 @@ class HyperparameterDialog(BasePopup):
         self._inputs: dict[str, QLineEdit]
         self._saved_inputs: dict[str, dict[str, str]]
 
-        self.params_scroll: QScrollArea
-
     def init_state(self) -> None:
         self.config = None
         self._model = None
@@ -85,15 +107,7 @@ class HyperparameterDialog(BasePopup):
         layout.addLayout(self._build_model_cards())
         layout.addLayout(self._build_algorithm_section())
         layout.addWidget(self._section_title('3. Гиперпараметры'))
-
-        self.params_scroll = QScrollArea()
-        self.params_scroll.setObjectName('paramScroll')
-        self.params_scroll.setWidgetResizable(True)
-        self.params_scroll.setFrameShape(QFrame.Shape.NoFrame)
-        self.params_scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
-        layout.addWidget(self.params_scroll, 1)
-
-        layout.addLayout(self._build_footer())
+        self._build_table(layout)
 
         self._select_model(MODELS[0].key)
 
@@ -160,10 +174,31 @@ class HyperparameterDialog(BasePopup):
         apply_shadow(box, blur=15, y_offset=3, alpha=25)
         return box
 
-    def _build_footer(self) -> QHBoxLayout:
-        row = QHBoxLayout()
-        row.setSpacing(16)
-        row.addStretch(1)
+    def _build_table(self, layout: QVBoxLayout) -> None:
+        """Шапка таблицы + контейнер под строки параметров. Всё прокручивается вместе."""
+        layout.addWidget(self._build_table_header())
+
+        self.rows_host = QWidget()
+        self.rows_layout = QVBoxLayout(self.rows_host)
+        self.rows_layout.setContentsMargins(0, 0, 0, 0)
+        self.rows_layout.setSpacing(10)
+        layout.addWidget(self.rows_host)
+        layout.addStretch(1)
+
+    @staticmethod
+    def _build_table_header() -> QWidget:
+        cells: list[QWidget] = []
+        for index, title in enumerate(COLUMN_TITLES):
+            cell = QLabel(title)
+            cell.setObjectName('tableHeaderCell')
+            cell.setAlignment(Qt.AlignmentFlag.AlignCenter)
+            cell.setFixedHeight(HEADER_HEIGHT)
+            cell.setProperty('last', index == len(COLUMN_TITLES) - 1)
+            cells.append(cell)
+        return _table_row(cells, 0)
+
+    def build_footer(self, layout: QHBoxLayout) -> None:
+        layout.addStretch(1)
 
         cancel_button = QPushButton('Отмена')
         cancel_button.setObjectName('secondaryButton')
@@ -181,9 +216,8 @@ class HyperparameterDialog(BasePopup):
         run_button.setCursor(Qt.CursorShape.PointingHandCursor)
         run_button.clicked.connect(self._on_run)
 
-        row.addWidget(cancel_button)
-        row.addWidget(run_button)
-        return row
+        layout.addWidget(cancel_button)
+        layout.addWidget(run_button)
 
     def _on_algorithm_changed(self, index: int) -> None:
         algorithm = ALGORITHMS_BY_KEY[self.algorithm_combo.itemData(index)]
@@ -206,35 +240,43 @@ class HyperparameterDialog(BasePopup):
         assert self._model is not None
         saved = self._saved_inputs.get(self._model.key, {})
 
-        container = QWidget()
-        container.setObjectName('paramContainer')
-        grid = QGridLayout(container)
-        grid.setContentsMargins(4, 4, 12, 4)
-        grid.setHorizontalSpacing(20)
-        grid.setVerticalSpacing(10)
-        grid.setColumnMinimumWidth(0, 300)
-        grid.setColumnStretch(1, 1)
-        grid.setColumnMinimumWidth(2, 200)
+        while (item := self.rows_layout.takeAt(0)) is not None:
+            widget = item.widget()
+            if widget is not None:
+                widget.setParent(None)
+                widget.deleteLater()
 
         self._inputs = {}
-        for row, spec in enumerate(self._model.params):
-            label = QLabel(spec.label)
-            label.setObjectName('paramLabel')
+        for spec in self._model.params:
+            self.rows_layout.addWidget(self._build_row(spec, saved.get(spec.key, '')))
 
-            edit = QLineEdit(saved.get(spec.key, spec.default))
-            edit.setObjectName('paramInput')
-            edit.textChanged.connect(lambda _text, e=edit: self._clear_invalid(e))
+    def _build_row(self, spec: ParamSpec, text: str) -> QWidget:
+        edit = QLineEdit(text)
+        edit.setObjectName('paramInput')
+        edit.setPlaceholderText(spec.example)
+        palette = edit.palette()
+        palette.setColor(QPalette.ColorRole.PlaceholderText, PLACEHOLDER_COLOR)
+        edit.setPalette(palette)
+        edit.textChanged.connect(lambda _text, e=edit: self._clear_invalid(e))
+        self._inputs[spec.key] = edit
 
-            hint = QLabel(f'Например: {spec.example}')
-            hint.setObjectName('paramHint')
+        return _table_row(
+            [
+                self._text_label(spec.label, 'paramPurpose'),
+                self._text_label(spec.key, 'paramName'),
+                self._text_label(spec.type_name, 'paramType'),
+                edit,
+                self._text_label(spec.allowed, 'paramAllowed'),
+            ],
+            cell_margin=8,
+        )
 
-            grid.addWidget(label, row, 0, alignment=Qt.AlignmentFlag.AlignVCenter)
-            grid.addWidget(edit, row, 1)
-            grid.addWidget(hint, row, 2, alignment=Qt.AlignmentFlag.AlignVCenter)
-            self._inputs[spec.key] = edit
-
-        grid.setRowStretch(len(self._model.params), 1)
-        self.params_scroll.setWidget(container)
+    @staticmethod
+    def _text_label(text: str, object_name: str) -> QLabel:
+        label = QLabel(text)
+        label.setObjectName(object_name)
+        label.setWordWrap(True)
+        return label
 
     @staticmethod
     def _mark_invalid(edit: QLineEdit, message: str) -> None:
@@ -259,12 +301,15 @@ class HyperparameterDialog(BasePopup):
         for spec in self._model.params:
             edit = self._inputs[spec.key]
             try:
-                values[spec.key] = spec.parse(edit.text())
+                parsed = spec.parse(edit.text())
             except ValueError as exc:
                 self._mark_invalid(edit, str(exc))
-                errors.append(f'• {spec.label}: {exc}')
+                errors.append(f'• {spec.label} ({spec.key}): {exc}')
                 if first_invalid is None:
                     first_invalid = edit
+                continue
+            if parsed:
+                values[spec.key] = parsed
 
         if errors:
             QMessageBox.warning(
@@ -273,7 +318,16 @@ class HyperparameterDialog(BasePopup):
                 'Исправьте значения в выделенных полях:\n\n' + '\n'.join(errors),
             )
             if first_invalid is not None:
+                self.scroll.ensureWidgetVisible(first_invalid)
                 first_invalid.setFocus()
+            return
+
+        if not values:
+            QMessageBox.warning(
+                self,
+                'Нет значений',
+                'Заполните хотя бы один гиперпараметр: впишите в поле значения через запятую.',
+            )
             return
 
         algorithm = ALGORITHMS_BY_KEY[self.algorithm_combo.currentData()]

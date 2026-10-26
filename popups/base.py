@@ -1,12 +1,16 @@
 from PySide6.QtCore import QEvent, QObject, QSize, Qt
 from PySide6.QtGui import QColor, QPainter, QPaintEvent
-from PySide6.QtWidgets import QDialog, QFrame, QHBoxLayout, QLabel, QPushButton, QVBoxLayout, QWidget
+from PySide6.QtWidgets import QDialog, QFrame, QHBoxLayout, QLabel, QPushButton, QScrollArea, QVBoxLayout, QWidget
 
 from card import apply_shadow
 from resources import icon
 
 OVERLAY_COLOR = QColor(0x66, 0x69, 0x6F, 0x99)
 SHADOW_MARGIN = 16
+
+CLOSE_BUTTON_SIZE = 40
+CLOSE_BUTTON_TOP = 20
+CLOSE_BUTTON_RIGHT = 22
 
 
 class ModalOverlay(QWidget):
@@ -41,16 +45,23 @@ class ModalOverlay(QWidget):
 
 class BasePopup(QDialog):
     """
-    Базовый класс попапа: белая карточка с тенью, шапка с крестиком, затемнение фона.
+    Базовый класс попапа: белая карточка с тенью и затемнением фона.
+
+    Устройство:
+      • вся карточка — одна область прокрутки: шапка (заголовок + разделитель) и тело
+        прокручиваются вместе;
+      • крестик закрытия плавает поверх и всегда виден;
+      • нижняя панель (кнопки) закреплена и не прокручивается.
 
     Чтобы сделать новый попап:
       1. Унаследуйтесь от BasePopup и передайте в super().__init__ заголовок, подзаголовок
          и (необязательно) имя иконки из папки images.
       2. Реализуйте build_body(layout) — содержимое под шапкой.
-      3. Откройте через popup.exec(): окно затемнится само и вернёт управление после закрытия.
+      3. По желанию реализуйте build_footer(layout) — кнопки в нижней панели.
+      4. Откройте через popup.exec(): окно затемнится само и вернёт управление после закрытия.
     """
 
-    max_size = QSize(1000, 820)
+    max_size = QSize(1200, 820)
 
     def __init__(
         self,
@@ -73,17 +84,48 @@ class BasePopup(QDialog):
         outer = QVBoxLayout(self)
         outer.setContentsMargins(SHADOW_MARGIN, SHADOW_MARGIN, SHADOW_MARGIN, SHADOW_MARGIN)
 
-        card = QFrame()
-        card.setObjectName('popupCard')
-        apply_shadow(card, blur=36, y_offset=8, alpha=70)
-        outer.addWidget(card)
+        self.card = QFrame()
+        self.card.setObjectName('popupCard')
+        apply_shadow(self.card, blur=36, y_offset=8, alpha=70)
+        outer.addWidget(self.card)
 
-        layout = QVBoxLayout(card)
-        layout.setContentsMargins(32, 26, 32, 24)
-        layout.setSpacing(14)
-        layout.addLayout(self._build_header(title, subtitle, icon_name))
-        layout.addWidget(self._build_separator())
-        self.build_body(layout)
+        card_layout = QVBoxLayout(self.card)
+        card_layout.setContentsMargins(0, 0, 0, 0)
+        card_layout.setSpacing(0)
+
+        self.scroll = QScrollArea()
+        self.scroll.setObjectName('popupScroll')
+        self.scroll.setWidgetResizable(True)
+        self.scroll.setFrameShape(QFrame.Shape.NoFrame)
+        self.scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+        self.scroll.viewport().setAutoFillBackground(False)
+        card_layout.addWidget(self.scroll, 1)
+
+        content = QWidget()
+        content.setObjectName('popupContent')
+        self.content_layout = QVBoxLayout(content)
+        self.content_layout.setContentsMargins(32, 26, 20, 20)
+        self.content_layout.setSpacing(14)
+        self.content_layout.addLayout(self._build_header(title, subtitle, icon_name))
+        self.content_layout.addWidget(self._build_separator())
+        self.build_body(self.content_layout)
+        self.scroll.setWidget(content)
+        content.setAutoFillBackground(False)
+
+        footer = QWidget()
+        footer.setObjectName('popupFooter')
+        footer_layout = QHBoxLayout(footer)
+        footer_layout.setContentsMargins(32, 12, 32, 22)
+        footer_layout.setSpacing(16)
+        self.build_footer(footer_layout)
+        if footer_layout.count():
+            card_layout.addWidget(footer)
+        else:
+            footer.deleteLater()
+
+        self.close_button = self._create_close_button()
+        self.card.installEventFilter(self)
+        self._place_close_button()
 
     def init_state(self) -> None:
         """Инициализация данных попапа. Вызывается до построения интерфейса."""
@@ -91,6 +133,9 @@ class BasePopup(QDialog):
     def build_body(self, layout: QVBoxLayout) -> None:
         """Содержимое попапа под шапкой."""
         raise NotImplementedError
+
+    def build_footer(self, layout: QHBoxLayout) -> None:
+        """Нижняя панель (кнопки). Если ничего не добавить, панели не будет."""
 
     def _build_header(self, title: str, subtitle: str, icon_name: str | None) -> QHBoxLayout:
         header = QHBoxLayout()
@@ -110,16 +155,7 @@ class BasePopup(QDialog):
         texts.addWidget(title_label)
         texts.addWidget(subtitle_label)
         header.addLayout(texts, 1)
-
-        close_button = QPushButton()
-        close_button.setObjectName('popupClose')
-        close_button.setFixedSize(40, 40)
-        close_button.setIcon(icon('close.svg'))
-        close_button.setIconSize(QSize(22, 22))
-        close_button.setCursor(Qt.CursorShape.PointingHandCursor)
-        close_button.setAutoDefault(False)
-        close_button.clicked.connect(self.reject)
-        header.addWidget(close_button, alignment=Qt.AlignmentFlag.AlignTop)
+        header.addSpacing(CLOSE_BUTTON_SIZE + 4)
         return header
 
     @staticmethod
@@ -128,6 +164,27 @@ class BasePopup(QDialog):
         line.setObjectName('popupSeparator')
         line.setFixedHeight(1)
         return line
+
+    def _create_close_button(self) -> QPushButton:
+        button = QPushButton(self.card)
+        button.setObjectName('popupClose')
+        button.setFixedSize(CLOSE_BUTTON_SIZE, CLOSE_BUTTON_SIZE)
+        button.setIcon(icon('close.svg'))
+        button.setIconSize(QSize(22, 22))
+        button.setCursor(Qt.CursorShape.PointingHandCursor)
+        button.setAutoDefault(False)
+        button.clicked.connect(self.reject)
+        return button
+
+    def _place_close_button(self) -> None:
+        x = self.card.width() - CLOSE_BUTTON_SIZE - CLOSE_BUTTON_RIGHT
+        self.close_button.move(x, CLOSE_BUTTON_TOP)
+        self.close_button.raise_()
+
+    def eventFilter(self, watched: QObject, event: QEvent) -> bool:
+        if watched is self.card and event.type() == QEvent.Type.Resize:
+            self._place_close_button()
+        return super().eventFilter(watched, event)
 
     def _place_over_host(self) -> None:
         host = self._host
