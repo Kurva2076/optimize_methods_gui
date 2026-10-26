@@ -616,7 +616,7 @@ KPCONV_PARAMS: tuple[ParamSpec, ...] = (
 MODELS: tuple[ModelSpec, ...] = (
     ModelSpec(
         key='pointnet2',
-        name='PointNet',
+        name='PointNet++',
         description='Базовая модель для классификации облаков точек',
         params=TRAINING_PARAMS + POINTNET2_PARAMS,
     ),
