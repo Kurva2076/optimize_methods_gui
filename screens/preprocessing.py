@@ -84,6 +84,7 @@ class PreprocessingScreen(BaseScreen):
         self.input_button = QPushButton('Выберите папку')
         self.input_button.setObjectName('primaryButton')
         self.input_button.setFixedWidth(180)
+        self.input_button.setStyleSheet('font-size: 16px; font-weight: 400;')
         self.input_button.clicked.connect(self.select_input_dir)
 
         drop_layout.addWidget(drop_text1, alignment=Qt.AlignmentFlag.AlignCenter)
@@ -144,6 +145,7 @@ class PreprocessingScreen(BaseScreen):
         self.optimize_button = QPushButton('Оптимизировать данные')
         self.optimize_button.setObjectName('primaryButton')
         self.optimize_button.setMinimumHeight(50)
+        self.optimize_button.setStyleSheet('font-weight: 400;')
         self.optimize_button.clicked.connect(self.start_optimization)
         layout.addWidget(self.optimize_button)
 

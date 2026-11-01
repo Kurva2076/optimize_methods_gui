@@ -31,7 +31,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from card import apply_shadow
+from card import apply_shadow, create_card
 from resources import icon
 from screens.base import BaseScreen
 from training_results import (
@@ -390,17 +390,44 @@ class TrainingScreen(BaseScreen):
         self._restore_attempted = False
 
     def build_content(self, layout: QVBoxLayout) -> None:
-        layout.addWidget(self._build_toolbar())
+        self.toolbar = self._build_toolbar()
+        layout.addWidget(self.toolbar)
 
         self.state_stack = QStackedWidget()
+        self.stage_placeholder_page = self._build_stage_placeholder()
         self.empty_page = self._build_empty_page()
         self.results_stack = QStackedWidget()
         self.results_stack.addWidget(self._build_graph_page())
         self.results_stack.addWidget(self._build_metrics_page())
         self.results_stack.addWidget(self._build_confusion_page())
+        self.state_stack.addWidget(self.stage_placeholder_page)
         self.state_stack.addWidget(self.empty_page)
         self.state_stack.addWidget(self.results_stack)
         layout.addWidget(self.state_stack, 1)
+
+    def _build_stage_placeholder(self) -> QWidget:
+        page = QWidget()
+        layout = QVBoxLayout(page)
+        layout.setContentsMargins(0, 0, 0, 0)
+
+        card, card_layout = create_card(self.title, 'Этот раздел находится в разработке.')
+        stub = QLabel('Скоро здесь появится функционал')
+        stub.setObjectName('cardDescription')
+        stub.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        card_layout.addStretch(1)
+        card_layout.addWidget(stub)
+        card_layout.addStretch(1)
+        layout.addWidget(card, 1)
+        return page
+
+    def show_stage_placeholder(self) -> None:
+        self.toolbar.hide()
+        self.state_stack.setCurrentWidget(self.stage_placeholder_page)
+
+    def show_results(self) -> None:
+        self.toolbar.show()
+        target = self.results_stack if self.results is not None else self.empty_page
+        self.state_stack.setCurrentWidget(target)
 
     def _build_toolbar(self) -> QWidget:
         toolbar = QWidget()
@@ -663,7 +690,12 @@ class TrainingScreen(BaseScreen):
         if directory:
             self.load_results(directory)
 
-    def load_results(self, directory: str | Path, show_errors: bool = True) -> bool:
+    def load_results(
+        self,
+        directory: str | Path,
+        show_errors: bool = True,
+        show_results: bool = True,
+    ) -> bool:
         """Загрузить результаты. Метод можно вызывать из карточки обученной модели."""
         try:
             results = load_experiment_results(directory)
@@ -684,7 +716,8 @@ class TrainingScreen(BaseScreen):
             'training_results_dir', str(results.run_dir)
         )
         self._refresh_all()
-        self.state_stack.setCurrentWidget(self.results_stack)
+        if show_results:
+            self.show_results()
         return True
 
     def _refresh_all(self) -> None:
@@ -889,4 +922,4 @@ class TrainingScreen(BaseScreen):
         self._restore_attempted = True
         saved = QSettings('PointCloud', 'PointCloudGUI').value('training_results_dir', '')
         if saved and Path(str(saved)).is_dir():
-            self.load_results(str(saved), show_errors=False)
+            self.load_results(str(saved), show_errors=False, show_results=False)

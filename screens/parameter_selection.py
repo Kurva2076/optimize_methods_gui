@@ -1,4 +1,4 @@
-from PySide6.QtCore import QSize, Qt
+from PySide6.QtCore import QSize, Qt, Signal
 from PySide6.QtGui import QPixmap
 from PySide6.QtWidgets import (
     QFrame,
@@ -19,6 +19,8 @@ from storage import save_search_config
 
 
 class ParameterSelectionScreen(BaseScreen):
+    training_results_requested = Signal()
+
     step_title = 'Настройка нейросети'
     title = 'Настройка нейросети'
     subtitle = ''
@@ -41,6 +43,7 @@ class ParameterSelectionScreen(BaseScreen):
         layout.addLayout(cards_layout)
         layout.addSpacing(22)
         layout.addWidget(self._build_info_panel())
+        layout.addSpacing(20)
         layout.addStretch(1)
 
     def _get_model_cards(self) -> list[dict[str, str]]:
@@ -102,7 +105,7 @@ class ParameterSelectionScreen(BaseScreen):
 
         button = QPushButton('Настроить модель')
         button.setObjectName('modelButton')
-        button.setMinimumHeight(44)
+        button.setFixedHeight(40)
         button.setMinimumWidth(180)
         button.setMaximumWidth(180)
         button.setCursor(Qt.CursorShape.PointingHandCursor)
@@ -112,15 +115,24 @@ class ParameterSelectionScreen(BaseScreen):
         button.clicked.connect(self.open_hyperparameter_dialog)
         root.addWidget(button, alignment=Qt.AlignmentFlag.AlignCenter)
 
+        results_button = QPushButton('Показать результаты обучения')
+        results_button.setObjectName('trainingResultsButton')
+        results_button.setFixedHeight(40)
+        results_button.setCursor(Qt.CursorShape.PointingHandCursor)
+        results_button.clicked.connect(
+            lambda _checked=False: self.training_results_requested.emit()
+        )
+        root.addWidget(results_button, alignment=Qt.AlignmentFlag.AlignCenter)
+
         return card
 
     def _build_info_panel(self) -> QFrame:
         panel = QFrame()
         panel.setObjectName('infoPanel')
-        apply_shadow(panel, blur=16, y_offset=4, alpha=30)
+        apply_shadow(panel, blur=18, y_offset=4, alpha=35)
 
         layout = QHBoxLayout(panel)
-        layout.setContentsMargins(12, 12, 12, 12)
+        layout.setContentsMargins(12, 6, 12, 6)
         layout.setSpacing(12)
 
         info_icon = QLabel()

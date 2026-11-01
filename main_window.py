@@ -7,6 +7,8 @@ from PySide6.QtWidgets import (
 
 from resources import image_path
 from screens import SCREENS, BaseScreen
+from screens.parameter_selection import ParameterSelectionScreen
+from screens.training import TrainingScreen
 from stepper import Stepper
 
 
@@ -22,6 +24,13 @@ class MainWindow(QMainWindow):
 
         self.screens: list[BaseScreen] = [cls() for cls in screen_classes]
         self.current_index = 0
+        self.training_screen = next(
+            (screen for screen in self.screens if isinstance(screen, TrainingScreen)),
+            None,
+        )
+        for screen in self.screens:
+            if isinstance(screen, ParameterSelectionScreen):
+                screen.training_results_requested.connect(self.show_training_results)
 
         self._init_ui()
         self.go_to(0)
@@ -100,7 +109,17 @@ class MainWindow(QMainWindow):
         self.current_index = index
         self.stack.setCurrentIndex(index)
         self.stepper.set_current(index)
+        if self.screens[index] is self.training_screen:
+            self.training_screen.show_stage_placeholder()
         self.screens[index].on_activated()
+
+    def show_training_results(self) -> None:
+        if self.training_screen is None:
+            return
+        training_index = self.screens.index(self.training_screen)
+        self.go_to(training_index)
+        if self.current_index == training_index:
+            self.training_screen.show_results()
 
     def _on_busy_changed(self, _busy: bool) -> None:
         self.stepper.set_locked(any(s.is_busy() for s in self.screens))
