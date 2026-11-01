@@ -1,0 +1,9 @@
+{
+  "model": "PointNet++",
+  "evaluation": {
+    "class_names": [
+      "Ground",
+      "Non-ground"
+    ]
+  }
+}

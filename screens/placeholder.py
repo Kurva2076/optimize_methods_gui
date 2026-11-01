@@ -19,12 +19,6 @@ class PlaceholderScreen(BaseScreen):
         layout.addWidget(card, 1)
 
 
-class TrainingScreen(PlaceholderScreen):
-    step_title = 'Обучение'
-    title = 'Обучение модели'
-    subtitle = 'Запустите обучение модели классификации.'
-
-
 class AggregationScreen(PlaceholderScreen):
     step_title = 'Агрегация'
     title = 'Агрегация результатов'
