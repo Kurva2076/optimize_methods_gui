@@ -1,6 +1,7 @@
 from pathlib import Path
 from unittest.mock import patch
 
+from PySide6.QtCore import Qt
 from PySide6.QtWidgets import QApplication
 
 from screens.training import TrainingScreen
@@ -15,6 +16,10 @@ def test_training_screen_loads_run_and_switches_graphs(completed_run: Path) -> N
         assert screen.results is not None
         assert screen.state_stack.currentWidget() is screen.results_stack
         assert screen.graph_title.text() == 'Функция потерь (Loss)'
+        loss_spec, _stats = screen._chart_specs()[0]
+        assert loss_spec.series[0].line_style == Qt.PenStyle.SolidLine
+        assert loss_spec.series[0].line_width == 2.8
+        assert loss_spec.series[1].line_style == Qt.PenStyle.DashLine
 
         expected_graphs = (
             'Среднее пересечение (mIoU)',
