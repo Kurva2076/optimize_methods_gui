@@ -1,0 +1,7 @@
+{
+  "status": "complete",
+  "run_id": "training_run_demo",
+  "best_epoch": 7,
+  "best_val_miou": 0.9043,
+  "note": "Синтетический набор только для ручной проверки GUI"
+}

@@ -1,0 +1,3 @@
+scene_id,num_points,miou,iou_ground,iou_non_ground,macro_f1
+15 Холмы.npy,28000,0.9831,0.9884,0.9778,0.9912
+16 Равнина.npy,29204,0.9666,0.9797,0.9535,0.9825

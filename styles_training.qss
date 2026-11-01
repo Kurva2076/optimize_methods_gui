@@ -1,0 +1,156 @@
+#trainingToolbar {
+    background: transparent;
+}
+
+QPushButton#trainingTab {
+    background-color: #FFFFFF;
+    color: #171717;
+    border: 1px solid #E2E7EF;
+    border-radius: 9px;
+    padding: 10px 18px;
+    font-size: 14px;
+    font-weight: 600;
+}
+
+QPushButton#trainingTab:hover {
+    background-color: #F0F4FF;
+    border-color: #B9C8F7;
+}
+
+QPushButton#trainingTab:checked {
+    background-color: #3867F5;
+    color: #FFFFFF;
+    border-color: #3867F5;
+}
+
+QPushButton#trainingTab:pressed {
+    background-color: #254BC4;
+}
+
+QLabel#resultsPath {
+    color: #667085;
+    font-size: 12px;
+    padding: 0 4px;
+}
+
+QPushButton#secondaryAction {
+    background-color: #FFFFFF;
+    color: #343A46;
+    border: 1px solid #D9E0EA;
+    border-radius: 9px;
+    padding: 9px 14px;
+    font-size: 13px;
+    font-weight: 600;
+}
+
+QPushButton#secondaryAction:hover {
+    background-color: #F0F4FF;
+    border-color: #B9C8F7;
+}
+
+QPushButton#secondaryAction:pressed {
+    background-color: #E4EBFC;
+}
+
+QFrame#resultsEmptyCard,
+QFrame#trainingContentCard {
+    background-color: #FFFFFF;
+    border: 1px solid #E5EAF2;
+    border-radius: 14px;
+}
+
+QLabel#emptyResultsTitle {
+    color: #171717;
+    font-size: 20px;
+    font-weight: 700;
+}
+
+QLabel#emptyResultsDescription {
+    color: #737B89;
+    font-size: 14px;
+    line-height: 1.5;
+}
+
+QPushButton#graphArrow {
+    background-color: #FFFFFF;
+    color: #171717;
+    border: 1px solid #E2E7EF;
+    border-radius: 26px;
+}
+
+QPushButton#graphArrow:hover {
+    background-color: #EEF3FF;
+    border-color: #B9C8F7;
+}
+
+QPushButton#graphArrow:pressed {
+    background-color: #DCE6FF;
+}
+
+QLabel#trainingSectionTitle {
+    color: #171717;
+    font-size: 16px;
+    font-weight: 700;
+}
+
+QLabel#trainingSectionDescription {
+    color: #8A94A6;
+    font-size: 13px;
+}
+
+QFrame#metricValueCard {
+    background-color: #F3F6FC;
+    border: 1px solid #E8EDF5;
+    border-radius: 10px;
+}
+
+QLabel#metricValueTitle {
+    color: #343A46;
+    font-size: 12px;
+    background: transparent;
+}
+
+QLabel#metricValue {
+    color: #111827;
+    font-size: 18px;
+    font-weight: 700;
+    background: transparent;
+}
+
+QLabel#sceneSummary {
+    color: #667085;
+    font-size: 12px;
+    padding: 2px 0 4px 0;
+}
+
+QTableWidget#metricsTable {
+    background-color: #FFFFFF;
+    alternate-background-color: #F8FAFD;
+    border: 1px solid #E2E7EF;
+    border-radius: 9px;
+    gridline-color: #E2E7EF;
+    outline: none;
+    color: #171717;
+}
+
+QTableWidget#metricsTable QHeaderView::section {
+    background-color: #F2F5FB;
+    color: #171717;
+    padding: 8px 10px;
+    border: none;
+    border-right: 1px solid #E2E7EF;
+    border-bottom: 1px solid #E2E7EF;
+    font-size: 12px;
+    font-weight: 700;
+}
+
+QTableWidget#metricsTable::item {
+    color: #171717;
+    padding: 8px;
+    border-right: 1px solid #EEF1F5;
+    border-bottom: 1px solid #EEF1F5;
+}
+
+QTableWidget#metricsTable::item:hover {
+    background-color: #F5F8FF;
+}
