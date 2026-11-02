@@ -1,3 +1,3 @@
 PySide6>=6.7,<6.12
 numpy>=1.24.0
-git+https://github.com/d2min/optimyze_methods.git
+git+https://github.com/d2min/optimyze_methods.git@0a797a32ebe54d812cc0ea35a05a2af2fbcfa2f0
