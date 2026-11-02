@@ -134,7 +134,6 @@ class LineChartWidget(QWidget):
             painter.drawText(self.rect(), Qt.AlignmentFlag.AlignCenter, 'Нет данных для графика')
             return
 
-        plot = QRectF(66, 24, max(1, self.width() - 92), max(1, self.height() - 82))
         values = [value for series in spec.series for value in series.values]
         data_min = min(values)
         data_max = max(values)
@@ -146,18 +145,38 @@ class LineChartWidget(QWidget):
             y_max += (y_max - y_min) * 0.08
 
         painter.setFont(QFont('Segoe UI', 9))
-        for tick in range(6):
-            ratio = tick / 5
+        tick_ratios = tuple(tick / 5 for tick in range(6))
+        tick_labels = tuple(
+            self._value_text(y_min + ratio * (y_max - y_min), spec.scientific)
+            for ratio in tick_ratios
+        )
+
+        # Keep three independent horizontal lanes on the left: the rotated
+        # axis title, tick values and the plot itself. Measuring the widest
+        # label makes scientific notation readable on both Windows and macOS.
+        axis_title_x = 13.0
+        tick_label_left = 30.0
+        tick_label_width = max(
+            painter.fontMetrics().horizontalAdvance(label) for label in tick_labels
+        )
+        plot_left = max(78.0, tick_label_left + tick_label_width + 10.0)
+        plot = QRectF(
+            plot_left,
+            24,
+            max(1, self.width() - plot_left - 26),
+            max(1, self.height() - 82),
+        )
+
+        for ratio, label in zip(tick_ratios, tick_labels):
             y = plot.bottom() - ratio * plot.height()
-            value = y_min + ratio * (y_max - y_min)
             painter.setPen(QPen(GRID, 1))
             painter.drawLine(QPointF(plot.left(), y), QPointF(plot.right(), y))
             painter.setPen(MUTED)
-            label_rect = QRectF(0, y - 10, plot.left() - 8, 20)
+            label_rect = QRectF(tick_label_left, y - 10, tick_label_width, 20)
             painter.drawText(
                 label_rect,
                 Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter,
-                self._value_text(value, spec.scientific),
+                label,
             )
 
         min_epoch, max_epoch = min(spec.epochs), max(spec.epochs)
@@ -184,7 +203,7 @@ class LineChartWidget(QWidget):
             'Эпоха',
         )
         painter.save()
-        painter.translate(16, plot.center().y())
+        painter.translate(axis_title_x, plot.center().y())
         painter.rotate(-90)
         painter.drawText(QRectF(-80, -10, 160, 20), Qt.AlignmentFlag.AlignCenter, spec.y_label)
         painter.restore()
