@@ -1,3 +1,4 @@
+import json
 from pathlib import Path
 
 from PySide6.QtCore import QSize, Qt, QThread, QTimer, Slot
@@ -12,6 +13,7 @@ from resources import icon
 from screens.base import BaseScreen
 from ui_components import DropZone, RotatingIcon, StyledProgressBar
 from workers import OptimizationWorker
+from popups.preprocessing_info_popup import PreprocessingInfoPopup
 
 
 class PreprocessingScreen(BaseScreen):
@@ -26,6 +28,8 @@ class PreprocessingScreen(BaseScreen):
         self.all_files: list[Path]
         self.excluded_files: list[Path]
         self.processing_times: dict[str, float]
+        self.preprocessing_info: list[dict]
+        self._preprocessing_completed: bool
 
         self._thread: QThread | None
         self._worker: OptimizationWorker | None
@@ -39,6 +43,47 @@ class PreprocessingScreen(BaseScreen):
         self.all_files = []
         self.excluded_files = []
         self.processing_times = {}
+        self.preprocessing_info = [
+            {
+                "file_name": "Демонстрационный набор данных",
+                "loaded_rows": 115113,
+                "classes": [2, 3, 4, 5, 6],
+                "coordinate_ranges": {
+                    "X": (0.05, 100.00),
+                    "Y": (0.01, 119.99),
+                    "Z": (-16.91, 41.96),
+                },
+                "cloud_step": 0.788,
+                "filters": [
+                    {"name": "hag", "removed": 1, "removed_percent": 0.001,
+                     "remaining": 115112, "elapsed": 0.1},
+                    {"name": "column_gap", "removed": 0, "removed_percent": 0.000,
+                     "remaining": 115112, "elapsed": 0.1},
+                    {"name": "clusters", "removed": 0, "removed_percent": 0.000,
+                     "remaining": 115112, "elapsed": 0.0},
+                ],
+            },
+            {
+                "file_name": "Демонстрационный набор данных",
+                "loaded_rows": 115113,
+                "classes": [2, 3, 4, 5, 6],
+                "coordinate_ranges": {
+                    "X": (0.05, 100.00),
+                    "Y": (0.01, 119.99),
+                    "Z": (-16.91, 41.96),
+                },
+                "cloud_step": 0.788,
+                "filters": [
+                    {"name": "hag", "removed": 1, "removed_percent": 0.001,
+                     "remaining": 115112, "elapsed": 0.1},
+                    {"name": "column_gap", "removed": 0, "removed_percent": 0.000,
+                     "remaining": 115112, "elapsed": 0.1},
+                    {"name": "clusters", "removed": 0, "removed_percent": 0.000,
+                     "remaining": 115112, "elapsed": 0.0},
+                ],
+            },
+        ]
+        self._preprocessing_completed = False
 
         self._thread = None
         self._worker = None
@@ -97,7 +142,18 @@ class PreprocessingScreen(BaseScreen):
 
         self.files_count_label = QLabel('Выбранные файлы (0)')
         self.files_count_label.setStyleSheet('font-weight: bold; font-size: 14px; color: #171717;')
-        layout.addWidget(self.files_count_label)
+        files_header = QHBoxLayout()
+        files_header.setSpacing(12)
+        files_header.addWidget(self.files_count_label)
+        files_header.addStretch(1)
+
+        self.additional_info_button = QPushButton("Дополнительная информация")
+        self.additional_info_button.setObjectName("primaryButton")
+        self.additional_info_button.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.additional_info_button.setEnabled(False)
+        self.additional_info_button.clicked.connect(self.show_additional_info)
+        files_header.addWidget(self.additional_info_button)
+        layout.addLayout(files_header)
 
         self.file_table = QTableWidget()
         self.file_table.setColumnCount(5)
@@ -205,6 +261,8 @@ class PreprocessingScreen(BaseScreen):
         except OSError:
             self.all_files = []
         self.excluded_files = []
+        self._preprocessing_completed = False
+        self.additional_info_button.setEnabled(False)
         self.update_table()
 
     def select_input_dir(self) -> None:
@@ -288,6 +346,8 @@ class PreprocessingScreen(BaseScreen):
             return
 
         self._set_controls_enabled(False)
+        self._preprocessing_completed = False
+        self.additional_info_button.setEnabled(False)
         self.status_title.setText('Подготовка к обработке...')
         self.status_desc.setText('Инициализация процесса...')
         self.progress_bar.setValue(0)
@@ -332,6 +392,16 @@ class PreprocessingScreen(BaseScreen):
         self.processing_times[file_path] = elapsed
         self.update_table()
 
+    def set_preprocessing_info(self, files_info: list[dict]) -> None:
+        """Передать статистику, полученную извне (например, от OptimizationWorker)."""
+        self.preprocessing_info = files_info
+
+    def show_additional_info(self) -> None:
+        if not self._preprocessing_completed:
+            return
+        popup = PreprocessingInfoPopup(self.preprocessing_info, self)
+        popup.exec()
+
     def rotate_status_icon(self) -> None:
         self.rotation_angle = (self.rotation_angle + 6) % 360
         self.status_icon_label.set_angle(self.rotation_angle)
@@ -341,10 +411,14 @@ class PreprocessingScreen(BaseScreen):
         self.rotation_angle = 0
         self.status_icon_label.set_angle(0)
 
-    @Slot(int, int, str)
-    def optimization_finished(self, success_count: int, total: int, report: str) -> None:
+    @Slot(int, int, str, str)
+    def optimization_finished(self, success_count: int, total: int, report: str, json_report: str) -> None:
         self._set_controls_enabled(True)
         self.stop_status_animation()
+        self._preprocessing_completed = 0 < total == success_count
+        self.additional_info_button.setEnabled(self._preprocessing_completed)
+        print(json.loads(json_report))
+        self.set_preprocessing_info(json.loads(json_report).get('files'))
         self.progress_bar.setValue(100)
         self.progress_bar.setFormat('Завершено: %p%')
         self.set_busy(False)
@@ -372,6 +446,8 @@ class PreprocessingScreen(BaseScreen):
     def optimization_failed(self, error: str) -> None:
         self._set_controls_enabled(True)
         self.stop_status_animation()
+        self._preprocessing_completed = False
+        self.additional_info_button.setEnabled(False)
         self.progress_bar.setFormat('Ошибка обработки')
         self.status_title.setText('Не удалось выполнить оптимизацию')
         self.status_desc.setText('Проверьте исходные файлы и попробуйте снова.')
