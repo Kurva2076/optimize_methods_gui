@@ -1,18 +1,16 @@
+import json
 import time
 from pathlib import Path
 
-import numpy as np
 from PySide6.QtCore import QObject, Signal, Slot
 
-from lib.data.xyz_loader import XYZLoader
-from lib.data.xyz_saver import save_points_to_xyz
-from lib.optimization.filtering import clean, ALS_PRESET
+from lib.pipeline import iter_process_directory
 
 
 class OptimizationWorker(QObject):
     progress = Signal(str, int, int)
     file_processed = Signal(str, float)
-    finished = Signal(int, int, str)
+    finished = Signal(int, int, str, str)
     failed = Signal(str)
 
     def __init__(
@@ -29,100 +27,85 @@ class OptimizationWorker(QObject):
     @Slot()
     def run(self) -> None:
         try:
-            files = sorted(
-                path for path in self.input_dir.iterdir()
+            excluded = {
+                path.resolve()
+                for path in self.exclude_files
+            }
+
+            files_count = sum(
+                1
+                for path in self.input_dir.iterdir()
                 if path.is_file()
-                and path.suffix.lower() == '.xyz'
-                and path not in self.exclude_files
+                and path.suffix.lower() == ".xyz"
+                and path.resolve() not in excluded
             )
 
-            if not files:
-                raise ValueError(
-                    'В папке нет доступных файлов .xyz для обработки.'
-                )
-
-            self.output_dir.mkdir(parents=True, exist_ok=True)
-
-            success_count = 0
+            results = []
             error_messages = []
+            success_count = 0
+            started_at = time.perf_counter()
 
-            for index, file_path in enumerate(files, start=1):
-                started_at = time.perf_counter()
+            iterator = iter_process_directory(
+                input_dir=self.input_dir,
+                export_dir=self.output_dir,
+                debug=False,
+            )
 
-                self.progress.emit(
-                    f'Обработка: {file_path.name}',
-                    index - 1,
-                    len(files)
+            for index, result in enumerate(iterator, start=1):
+                elapsed = sum(result.timings.values())
+
+                self.file_processed.emit(
+                    str(result.input_path),
+                    elapsed,
                 )
 
-                try:
-                    classes, points = XYZLoader(
-                        str(file_path)
-                    ).load(dtype=np.float64)
-
-                    result = clean(
-                        points,
-                        classes,
-                        steps=ALS_PRESET
-                    )
-
-                    clean_classes = classes[result.keep]
-                    clean_points = points[result.keep]
-
-                    clean_path = (
-                        self.output_dir /
-                        f'{file_path.stem}_clean.xyz'
-                    )
-
-                    save_points_to_xyz(
-                        points=clean_points,
-                        filepath=str(clean_path),
-                        classes=clean_classes,
-                    )
-
-                    noise_mask = ~result.keep
-
-                    if np.any(noise_mask):
-                        noise_path = (
-                            self.output_dir /
-                            f'{file_path.stem}_noise.xyz'
-                        )
-
-                        save_points_to_xyz(
-                            points=points[noise_mask],
-                            filepath=str(noise_path),
-                            classes=result.codes[noise_mask],
-                        )
-
+                if result.success:
                     success_count += 1
-
-                except Exception as error:
+                else:
                     error_messages.append(
-                        f'{file_path.name}: {error}'
+                        f"{result.input_path.name}: {result.error}"
                     )
 
-                finally:
-                    elapsed = time.perf_counter() - started_at
-                    self.file_processed.emit(
-                        str(file_path),
-                        elapsed
-                    )
+                file_result = result.to_dict()
+                file_result["output_path"] = (
+                    str(result.output_path)
+                    if result.output_path else None
+                )
+                file_result["timings"] = result.timings
+
+                results.append(file_result)
 
                 self.progress.emit(
-                    f'Обработано файлов: {index} из {len(files)}',
+                    f"Обработано файлов: {index} из {files_count}",
                     index,
-                    len(files)
+                    files_count,
                 )
+
+            elapsed_seconds = time.perf_counter() - started_at
 
             report = (
-                '\n\nОшибки:\n' + '\n'.join(error_messages)
-                if error_messages else ''
+                "\n\nОшибки:\n" + "\n".join(error_messages)
+                if error_messages else ""
+            )
+
+            json_report = json.dumps(
+                {
+                    "success": success_count == files_count,
+                    "input_dir": str(self.input_dir.resolve()),
+                    "export_dir": str(self.output_dir.resolve()),
+                    "elapsed_seconds": elapsed_seconds,
+                    "files": results,
+                },
+                ensure_ascii=False,
+                indent=2,
+                allow_nan=False,
             )
 
             self.finished.emit(
                 success_count,
-                len(files),
-                report
+                files_count,
+                report,
+                json_report,
             )
 
         except Exception as error:
