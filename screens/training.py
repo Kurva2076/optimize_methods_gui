@@ -75,6 +75,8 @@ class ChartSeries:
     values: tuple[float, ...]
     color: QColor
     highlight_index: int | None = None
+    line_style: Qt.PenStyle = Qt.PenStyle.SolidLine
+    line_width: float = 2.4
 
 
 @dataclass(frozen=True)
@@ -187,6 +189,7 @@ class LineChartWidget(QWidget):
         painter.drawText(QRectF(-80, -10, 160, 20), Qt.AlignmentFlag.AlignCenter, spec.y_label)
         painter.restore()
 
+        rendered_series: list[tuple[ChartSeries, list[QPointF], QPainterPath]] = []
         for series in spec.series:
             path = QPainterPath()
             series_points: list[QPointF] = []
@@ -201,8 +204,29 @@ class LineChartWidget(QWidget):
                     path.lineTo(point)
                 self._points.append((point, series.name, epoch, value))
 
-            painter.setPen(QPen(series.color, 2.4, Qt.PenStyle.SolidLine, Qt.PenCapStyle.RoundCap))
+            rendered_series.append((series, series_points, path))
+
+        # Dashed comparison series are painted first. Solid series are then
+        # drawn on top, so their path remains continuous and readable even
+        # where the curves intersect or briefly coincide.
+        paint_order = sorted(
+            rendered_series,
+            key=lambda item: item[0].line_style == Qt.PenStyle.SolidLine,
+        )
+        for series, _series_points, path in paint_order:
+            painter.setPen(
+                QPen(
+                    series.color,
+                    series.line_width,
+                    series.line_style,
+                    Qt.PenCapStyle.RoundCap,
+                )
+            )
             painter.drawPath(path)
+
+        # Markers follow the same priority as the paths: comparison markers
+        # first, then the primary solid-series markers on top.
+        for series, series_points, _path in paint_order:
             if len(series_points) <= 40:
                 painter.setBrush(QColor('#FFFFFF'))
                 painter.setPen(QPen(series.color, 1.8))
@@ -222,7 +246,14 @@ class LineChartWidget(QWidget):
         painter.drawRoundedRect(legend, 7, 7)
         for index, series in enumerate(spec.series):
             y = legend.top() + 18 + index * 24
-            painter.setPen(QPen(series.color, 2.4))
+            painter.setPen(
+                QPen(
+                    series.color,
+                    series.line_width,
+                    series.line_style,
+                    Qt.PenCapStyle.RoundCap,
+                )
+            )
             painter.drawLine(QPointF(legend.left() + 12, y), QPointF(legend.left() + 34, y))
             painter.setPen(TEXT)
             painter.drawText(
@@ -742,8 +773,18 @@ class TrainingScreen(BaseScreen):
             'Loss',
             epochs,
             (
-                ChartSeries('Train', tuple(row.train_loss for row in history), BLUE),
-                ChartSeries('Validation', tuple(row.val_loss for row in history), ORANGE),
+                ChartSeries(
+                    'Train',
+                    tuple(row.train_loss for row in history),
+                    BLUE,
+                    line_width=2.8,
+                ),
+                ChartSeries(
+                    'Validation',
+                    tuple(row.val_loss for row in history),
+                    ORANGE,
+                    line_style=Qt.PenStyle.DashLine,
+                ),
             ),
             y_min=0,
         )
