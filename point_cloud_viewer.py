@@ -803,7 +803,7 @@ class PointCloudViewerDialog(QDialog):
         layout.addWidget(self.point_size_slider)
 
         self.round_points = QCheckBox('Круглые точки')
-        self.round_points.setChecked(True)
+        self.round_points.setChecked(False)
         self.round_points.toggled.connect(self.canvas.set_round_points)
         layout.addWidget(self.round_points)
 
@@ -1433,7 +1433,7 @@ class PointCloudViewerDialog(QDialog):
             self.settings.value('point_size', 10, type=int)
         )
         self.round_points.setChecked(
-            self.settings.value('round_points', True, type=bool)
+            self.settings.value('round_points', False, type=bool)
         )
         self.edge_detection.setChecked(
             self.settings.value('edge_detection', False, type=bool)
