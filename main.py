@@ -6,14 +6,14 @@ from PySide6.QtWidgets import QApplication
 
 from main_window import MainWindow
 from qt_runtime import prepare_qt_runtime
-from resources import STYLE_FILES
+from resources import apply_application_style
+from resources import load_styles as load_application_styles
 from screens.preprocessing import PreprocessingScreen
 
 
 def load_styles() -> str:
-    return '\n'.join(
-        path.read_text(encoding='utf-8') for path in STYLE_FILES if path.exists()
-    )
+    """Обратная совместимость для скриптов, импортировавших загрузчик из main."""
+    return load_application_styles()
 
 
 def existing_directory(value: str) -> Path:
@@ -67,7 +67,7 @@ def main() -> None:
     prepare_qt_runtime()
     arguments, qt_arguments = parse_application_arguments(sys.argv[1:])
     app = QApplication([sys.argv[0], *qt_arguments])
-    app.setStyleSheet(load_styles())
+    apply_application_style(app)
     window = MainWindow()
     apply_initial_directories(
         window,

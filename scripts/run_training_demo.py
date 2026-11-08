@@ -11,16 +11,16 @@ if str(ROOT_DIR) not in sys.path:
 
 from PySide6.QtWidgets import QApplication
 
-from main import load_styles
 from main_window import MainWindow
 from qt_runtime import prepare_qt_runtime
+from resources import apply_application_style
 from screens.training import TrainingScreen
 
 
 def main() -> None:
     prepare_qt_runtime()
     app = QApplication(sys.argv)
-    app.setStyleSheet(load_styles())
+    apply_application_style(app)
 
     window = MainWindow()
     window.go_to(2)

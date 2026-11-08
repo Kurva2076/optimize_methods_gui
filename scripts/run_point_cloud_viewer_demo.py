@@ -11,15 +11,7 @@ if str(ROOT_DIR) not in sys.path:
 
 from point_cloud_viewer import PointCloudViewerDialog
 from qt_runtime import prepare_qt_runtime
-from resources import STYLE_FILES
-
-
-def load_styles() -> str:
-    return '\n'.join(
-        path.read_text(encoding='utf-8')
-        for path in STYLE_FILES
-        if path.exists()
-    )
+from resources import apply_application_style
 
 
 def main() -> None:
@@ -31,7 +23,7 @@ def main() -> None:
     )
     app = QApplication(sys.argv)
     app.setApplicationName('PointCloud')
-    app.setStyleSheet(load_styles())
+    apply_application_style(app)
     viewer = PointCloudViewerDialog(source)
     viewer.showMaximized()
     sys.exit(app.exec())
