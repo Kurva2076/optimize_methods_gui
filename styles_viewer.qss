@@ -135,6 +135,70 @@ QPushButton#viewerToolButton:checked {
     color: #FFFFFF;
 }
 
+QFrame#viewerCameraToolbar {
+    background-color: rgba(255, 255, 255, 248);
+    border: 1px solid #DDE4EE;
+    border-radius: 12px;
+}
+
+QLabel#viewerCameraToolbarLabel {
+    background-color: transparent;
+    color: #4D5665;
+    font-size: 11px;
+    font-weight: 600;
+    padding: 0 2px;
+}
+
+QWidget#viewerFlightSpeedRow {
+    background-color: transparent;
+}
+
+QPushButton#viewerCameraSegment,
+QPushButton#viewerCameraMenuButton,
+QPushButton#viewerCameraIconButton {
+    background-color: #FFFFFF;
+    color: #343A46;
+    border: 1px solid #DDE4EE;
+    border-radius: 7px;
+    min-height: 20px;
+    padding: 7px 10px;
+    font-size: 11px;
+    font-weight: 600;
+}
+
+QPushButton#viewerCameraSegment:hover,
+QPushButton#viewerCameraMenuButton:hover,
+QPushButton#viewerCameraIconButton:hover {
+    background-color: #EEF3FF;
+    border-color: #AFC2FF;
+    color: #2F59DC;
+}
+
+QPushButton#viewerCameraSegment:checked {
+    background-color: #3867F5;
+    border-color: #3867F5;
+    color: #FFFFFF;
+}
+
+QPushButton#viewerCameraIconButton {
+    padding: 6px;
+}
+
+QDoubleSpinBox#viewerCameraSpin {
+    min-height: 20px;
+    padding: 6px 7px;
+    font-size: 11px;
+    font-weight: 600;
+}
+
+QFrame#viewerCameraSeparator {
+    background-color: #E4EAF2;
+    border: none;
+    min-width: 1px;
+    max-width: 1px;
+    margin: 4px 2px;
+}
+
 QPushButton#viewerSecondaryButton:disabled,
 QPushButton#secondaryButton:disabled {
     background-color: #F5F7FA;
@@ -277,7 +341,8 @@ QDoubleSpinBox#viewerClassMultiplier {
 }
 
 QMenu#viewerFileMenu,
-QMenu#viewerFileMenu QMenu {
+QMenu#viewerFileMenu QMenu,
+QMenu#viewerCameraMenu {
     background-color: #FFFFFF;
     color: #343A46;
     border: 1px solid #DDE4EE;
@@ -286,24 +351,28 @@ QMenu#viewerFileMenu QMenu {
 }
 
 QMenu#viewerFileMenu::item,
-QMenu#viewerFileMenu QMenu::item {
+QMenu#viewerFileMenu QMenu::item,
+QMenu#viewerCameraMenu::item {
     border-radius: 6px;
     padding: 8px 28px 8px 10px;
 }
 
 QMenu#viewerFileMenu::item:selected,
-QMenu#viewerFileMenu QMenu::item:selected {
+QMenu#viewerFileMenu QMenu::item:selected,
+QMenu#viewerCameraMenu::item:selected {
     background-color: #EEF3FF;
     color: #2F59DC;
 }
 
 QMenu#viewerFileMenu::item:disabled,
-QMenu#viewerFileMenu QMenu::item:disabled {
+QMenu#viewerFileMenu QMenu::item:disabled,
+QMenu#viewerCameraMenu::item:disabled {
     color: #A0A8B5;
 }
 
 QMenu#viewerFileMenu::separator,
-QMenu#viewerFileMenu QMenu::separator {
+QMenu#viewerFileMenu QMenu::separator,
+QMenu#viewerCameraMenu::separator {
     background-color: #E7ECF3;
     height: 1px;
     margin: 5px 8px;
@@ -451,6 +520,41 @@ QDialog#pointCloudViewer[viewerTheme="dark"] QPushButton#viewerToolButton:checke
     color: #FFFFFF;
 }
 
+QDialog#pointCloudViewer[viewerTheme="dark"] QFrame#viewerCameraToolbar {
+    background-color: rgba(17, 24, 39, 248);
+    border-color: #334155;
+}
+
+QDialog#pointCloudViewer[viewerTheme="dark"] QLabel#viewerCameraToolbarLabel {
+    color: #B8C3D4;
+}
+
+QDialog#pointCloudViewer[viewerTheme="dark"] QPushButton#viewerCameraSegment,
+QDialog#pointCloudViewer[viewerTheme="dark"] QPushButton#viewerCameraMenuButton,
+QDialog#pointCloudViewer[viewerTheme="dark"] QPushButton#viewerCameraIconButton {
+    background-color: #172033;
+    color: #D6DEEA;
+    border-color: #334155;
+}
+
+QDialog#pointCloudViewer[viewerTheme="dark"] QPushButton#viewerCameraSegment:hover,
+QDialog#pointCloudViewer[viewerTheme="dark"] QPushButton#viewerCameraMenuButton:hover,
+QDialog#pointCloudViewer[viewerTheme="dark"] QPushButton#viewerCameraIconButton:hover {
+    background-color: #1E2D48;
+    border-color: #587CF7;
+    color: #AFC3FF;
+}
+
+QDialog#pointCloudViewer[viewerTheme="dark"] QPushButton#viewerCameraSegment:checked {
+    background-color: #3867F5;
+    border-color: #5B82FF;
+    color: #FFFFFF;
+}
+
+QDialog#pointCloudViewer[viewerTheme="dark"] QFrame#viewerCameraSeparator {
+    background-color: #334155;
+}
+
 QDialog#pointCloudViewer[viewerTheme="dark"] QComboBox,
 QDialog#pointCloudViewer[viewerTheme="dark"] QDoubleSpinBox {
     background-color: #172033;
@@ -504,19 +608,22 @@ QDialog#pointCloudViewer[viewerTheme="dark"] QScrollArea#viewerControlsScroll QS
 
 QMenu#viewerFileMenu[viewerTheme="dark"],
 QDialog#pointCloudViewer[viewerTheme="dark"] QMenu#viewerFileMenu,
-QDialog#pointCloudViewer[viewerTheme="dark"] QMenu#viewerFileMenu QMenu {
+QDialog#pointCloudViewer[viewerTheme="dark"] QMenu#viewerFileMenu QMenu,
+QMenu#viewerCameraMenu[viewerTheme="dark"] {
     background-color: #111827;
     color: #E5E7EB;
     border-color: #334155;
 }
 
 QDialog#pointCloudViewer[viewerTheme="dark"] QMenu#viewerFileMenu::item:selected,
-QDialog#pointCloudViewer[viewerTheme="dark"] QMenu#viewerFileMenu QMenu::item:selected {
+QDialog#pointCloudViewer[viewerTheme="dark"] QMenu#viewerFileMenu QMenu::item:selected,
+QMenu#viewerCameraMenu[viewerTheme="dark"]::item:selected {
     background-color: #253A6D;
     color: #FFFFFF;
 }
 
 QDialog#pointCloudViewer[viewerTheme="dark"] QMenu#viewerFileMenu::separator,
-QDialog#pointCloudViewer[viewerTheme="dark"] QMenu#viewerFileMenu QMenu::separator {
+QDialog#pointCloudViewer[viewerTheme="dark"] QMenu#viewerFileMenu QMenu::separator,
+QMenu#viewerCameraMenu[viewerTheme="dark"]::separator {
     background-color: #334155;
 }

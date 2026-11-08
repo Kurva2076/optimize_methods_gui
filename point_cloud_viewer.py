@@ -48,6 +48,7 @@ from PySide6.QtWidgets import (
     QScrollArea,
     QSizePolicy,
     QSlider,
+    QStyle,
     QTabWidget,
     QVBoxLayout,
     QWidget,
@@ -566,6 +567,9 @@ class PointCloudViewerDialog(QDialog):
         self.canvas.render_error.connect(self._show_render_error)
         layout.addWidget(self.canvas, 1)
 
+        self.camera_toolbar = self._build_camera_toolbar(card)
+        self.camera_toolbar.raise_()
+
         status = QHBoxLayout()
         status.setContentsMargins(8, 0, 8, 0)
         self.file_status = QLabel('Файл не выбран')
@@ -596,6 +600,179 @@ class PointCloudViewerDialog(QDialog):
         )
         self.immersive_menu_button.hide()
         return card
+
+    def _build_camera_toolbar(self, parent: QWidget) -> QFrame:
+        toolbar = QFrame(parent)
+        toolbar.setObjectName('viewerCameraToolbar')
+        toolbar.setSizePolicy(
+            QSizePolicy.Policy.Fixed,
+            QSizePolicy.Policy.Fixed,
+        )
+        apply_shadow(toolbar, blur=18, y_offset=4, alpha=42)
+        layout = QHBoxLayout(toolbar)
+        layout.setContentsMargins(10, 8, 10, 8)
+        layout.setSpacing(6)
+
+        self.camera_navigation_group = QButtonGroup(self)
+        self.camera_navigation_group.setExclusive(True)
+        self.orbit_button = self._camera_segment_button('Орбита')
+        self.flight_button = self._camera_segment_button('Полёт')
+        self.orbit_button.setChecked(True)
+        self.orbit_button.setToolTip('Орбитальная камера')
+        self.flight_button.setToolTip('Свободный полёт')
+        self.orbit_button.clicked.connect(
+            lambda _checked=False: self._set_navigation_mode('orbit')
+        )
+        self.flight_button.clicked.connect(
+            lambda _checked=False: self._set_navigation_mode('flight')
+        )
+        self.camera_navigation_group.addButton(self.orbit_button)
+        self.camera_navigation_group.addButton(self.flight_button)
+        layout.addWidget(self.orbit_button)
+        layout.addWidget(self.flight_button)
+        layout.addWidget(self._camera_separator())
+
+        self.flight_speed_row = QWidget(toolbar)
+        self.flight_speed_row.setObjectName('viewerFlightSpeedRow')
+        speed_layout = QHBoxLayout(self.flight_speed_row)
+        speed_layout.setContentsMargins(0, 0, 0, 0)
+        speed_layout.setSpacing(5)
+        self.flight_speed_label = self._camera_label('Скорость')
+        speed_layout.addWidget(self.flight_speed_label)
+        self.flight_speed = QDoubleSpinBox()
+        self.flight_speed.setObjectName('viewerCameraSpin')
+        self.flight_speed.setDecimals(1)
+        self.flight_speed.setRange(0.1, 100_000.0)
+        self.flight_speed.setSingleStep(1.0)
+        self.flight_speed.setSuffix(' м/с')
+        self.flight_speed.setValue(10.0)
+        self.flight_speed.setFixedWidth(112)
+        self.flight_speed.setToolTip('Скорость перемещения в свободном полёте')
+        self.flight_speed.valueChanged.connect(self.canvas.set_flight_speed)
+        speed_layout.addWidget(self.flight_speed)
+        self.flight_speed_row.hide()
+        layout.addWidget(self.flight_speed_row)
+
+        self.fov_separator = self._camera_separator()
+        self.fov_separator.hide()
+        layout.addWidget(self.fov_separator)
+        self.fov_label = self._camera_label('FOV')
+        layout.addWidget(self.fov_label)
+        self.field_of_view = QDoubleSpinBox()
+        self.field_of_view.setObjectName('viewerCameraSpin')
+        self.field_of_view.setRange(20.0, 120.0)
+        self.field_of_view.setSingleStep(5.0)
+        self.field_of_view.setDecimals(0)
+        self.field_of_view.setSuffix('°')
+        self.field_of_view.setValue(75.0)
+        self.field_of_view.setFixedWidth(74)
+        self.field_of_view.setToolTip('Угол обзора перспективной камеры')
+        self.field_of_view.valueChanged.connect(self.canvas.set_field_of_view)
+        layout.addWidget(self.field_of_view)
+        layout.addWidget(self._camera_separator())
+
+        self.camera_projection_group = QButtonGroup(self)
+        self.camera_projection_group.setExclusive(True)
+        self.perspective_button = self._camera_segment_button('Перспектива')
+        self.orthographic_button = self._camera_segment_button('Ортограф.')
+        self.perspective_button.setChecked(True)
+        self.perspective_button.setToolTip('Перспективная проекция')
+        self.orthographic_button.setToolTip('Ортографическая проекция')
+        self.perspective_button.clicked.connect(
+            lambda _checked=False: self._set_projection(True)
+        )
+        self.orthographic_button.clicked.connect(
+            lambda _checked=False: self._set_projection(False)
+        )
+        self.camera_projection_group.addButton(self.perspective_button)
+        self.camera_projection_group.addButton(self.orthographic_button)
+        layout.addWidget(self.perspective_button)
+        layout.addWidget(self.orthographic_button)
+        layout.addWidget(self._camera_separator())
+
+        self.camera_view_menu = QMenu(toolbar)
+        self.camera_view_menu.setObjectName('viewerCameraMenu')
+        self.camera_view_actions: dict[str, QAction] = {}
+        for text, view in (
+            ('Сверху', 'top'),
+            ('Снизу', 'bottom'),
+            ('Спереди', 'front'),
+            ('Сзади', 'back'),
+            ('Слева', 'left'),
+            ('Справа', 'right'),
+        ):
+            action = self.camera_view_menu.addAction(text)
+            action.triggered.connect(
+                lambda _checked=False, value=view: self.canvas.set_view(value)
+            )
+            self.camera_view_actions[view] = action
+
+        self.camera_view_button = QPushButton('Ракурс')
+        self.camera_view_button.setObjectName('viewerCameraMenuButton')
+        self.camera_view_button.setIcon(
+            self.style().standardIcon(
+                QStyle.StandardPixmap.SP_FileDialogDetailedView
+            )
+        )
+        self.camera_view_button.setToolTip('Выбрать стандартный ракурс')
+        self.camera_view_button.setMenu(self.camera_view_menu)
+        layout.addWidget(self.camera_view_button)
+
+        self.camera_reset_button = QPushButton()
+        self.camera_reset_button.setObjectName('viewerCameraIconButton')
+        self.camera_reset_button.setFixedSize(38, 38)
+        self.camera_reset_button.setIcon(
+            self.style().standardIcon(QStyle.StandardPixmap.SP_BrowserReload)
+        )
+        self.camera_reset_button.setToolTip('Сбросить камеру (Home)')
+        self.camera_reset_button.setAccessibleName('Сбросить камеру')
+        self.camera_reset_button.clicked.connect(self.canvas.reset_camera)
+        layout.addWidget(self.camera_reset_button)
+
+        toolbar.adjustSize()
+        return toolbar
+
+    def _set_camera_toolbar_compact(self, compact: bool) -> None:
+        if self.camera_toolbar.property('compact') == compact:
+            return
+        self.camera_toolbar.setProperty('compact', compact)
+        self.flight_speed_label.setVisible(not compact)
+        self.fov_label.setVisible(not compact)
+        self.perspective_button.setText('Персп.' if compact else 'Перспектива')
+        self.orthographic_button.setText('Ортогр.' if compact else 'Ортограф.')
+        self.camera_view_button.setText('Вид' if compact else 'Ракурс')
+        self.flight_speed.setFixedWidth(96 if compact else 112)
+        self.field_of_view.setFixedWidth(66 if compact else 74)
+        toolbar_layout = self.camera_toolbar.layout()
+        toolbar_layout.setContentsMargins(
+            8 if compact else 10,
+            8,
+            8 if compact else 10,
+            8,
+        )
+        toolbar_layout.setSpacing(4 if compact else 6)
+        self.camera_toolbar.adjustSize()
+
+    @staticmethod
+    def _camera_label(text: str) -> QLabel:
+        label = QLabel(text)
+        label.setObjectName('viewerCameraToolbarLabel')
+        return label
+
+    @staticmethod
+    def _camera_segment_button(text: str) -> QPushButton:
+        button = QPushButton(text)
+        button.setObjectName('viewerCameraSegment')
+        button.setCheckable(True)
+        button.setCursor(Qt.CursorShape.PointingHandCursor)
+        return button
+
+    @staticmethod
+    def _camera_separator() -> QFrame:
+        separator = QFrame()
+        separator.setObjectName('viewerCameraSeparator')
+        separator.setFrameShape(QFrame.Shape.VLine)
+        return separator
 
     def _build_control_panel(self) -> QScrollArea:
         scroll = AdaptiveControlsScroll()
@@ -639,7 +816,6 @@ class PointCloudViewerDialog(QDialog):
 
         self.controls_layout.addWidget(self._build_file_section())
         self.controls_layout.addWidget(self._build_appearance_section())
-        self.controls_layout.addWidget(self._build_camera_section())
         self.controls_layout.addWidget(self._build_tools_section())
         self.controls_layout.addWidget(self._build_clipping_section())
         self.controls_layout.addWidget(self._build_classes_section())
@@ -719,6 +895,7 @@ class PointCloudViewerDialog(QDialog):
             widget.style().unpolish(widget)
             widget.style().polish(widget)
         QTimer.singleShot(0, self._position_immersive_menu)
+        QTimer.singleShot(0, self._position_camera_toolbar)
 
     def _set_immersive_menu_visible(self, visible: bool) -> None:
         if not self._immersive_mode:
@@ -727,6 +904,7 @@ class PointCloudViewerDialog(QDialog):
         self.controls_panel.setVisible(visible)
         self.immersive_menu_button.setVisible(not visible)
         self._position_immersive_menu()
+        self._position_camera_toolbar()
 
     def _position_immersive_menu(self) -> None:
         if not self._immersive_mode:
@@ -748,6 +926,32 @@ class PointCloudViewerDialog(QDialog):
                 margin,
             )
             self.immersive_menu_button.raise_()
+
+    def _position_camera_toolbar(self) -> None:
+        if not hasattr(self, 'camera_toolbar') or not hasattr(self, 'canvas'):
+            return
+
+        self.camera_toolbar.adjustSize()
+        canvas_rect = self.canvas.geometry()
+        available_left = canvas_rect.left() + 12
+        available_right = canvas_rect.right() - 12
+        if (
+            self._immersive_mode
+            and hasattr(self, 'controls_panel')
+            and self.controls_panel.isVisible()
+        ):
+            available_right = min(
+                available_right,
+                self.controls_panel.geometry().left() - 12,
+            )
+
+        available_width = max(0, available_right - available_left + 1)
+        self._set_camera_toolbar_compact(available_width < 850)
+        toolbar_width = self.camera_toolbar.sizeHint().width()
+        x = available_left + max(0, (available_width - toolbar_width) // 2)
+        y = canvas_rect.top() + 14
+        self.camera_toolbar.move(x, y)
+        self.camera_toolbar.raise_()
 
     def _build_file_section(self) -> QFrame:
         section, layout = self._section('Данные')
@@ -826,120 +1030,6 @@ class PointCloudViewerDialog(QDialog):
             self.canvas.set_gradient_background
         )
         layout.addWidget(self.gradient_background)
-        return section
-
-    def _build_camera_section(self) -> QFrame:
-        section, layout = self._section('Камера')
-
-        layout.addWidget(self._control_label('Режим навигации'))
-        self.navigation_combo = QComboBox()
-        self.navigation_combo.setMinimumWidth(0)
-        self.navigation_combo.setSizePolicy(
-            QSizePolicy.Policy.Ignored,
-            QSizePolicy.Policy.Fixed,
-        )
-        self.navigation_combo.addItem('Орбитальная камера', 'orbit')
-        self.navigation_combo.addItem('Свободный полёт', 'flight')
-        self.navigation_combo.currentIndexChanged.connect(
-            self._change_navigation_mode
-        )
-        layout.addWidget(self.navigation_combo)
-
-        self.flight_speed_row = QWidget()
-        self.flight_speed_row.setMinimumWidth(0)
-        self.flight_speed_row.setSizePolicy(
-            QSizePolicy.Policy.Ignored,
-            QSizePolicy.Policy.Fixed,
-        )
-        speed_row = QHBoxLayout(self.flight_speed_row)
-        speed_row.setContentsMargins(0, 0, 0, 0)
-        speed_row.setSpacing(8)
-        speed_row.addWidget(self._control_label('Скорость полёта'))
-        self.flight_speed = QDoubleSpinBox()
-        self.flight_speed.setMinimumWidth(0)
-        self.flight_speed.setSizePolicy(
-            QSizePolicy.Policy.Expanding,
-            QSizePolicy.Policy.Fixed,
-        )
-        self.flight_speed.setDecimals(1)
-        self.flight_speed.setRange(0.1, 100_000.0)
-        self.flight_speed.setSingleStep(1.0)
-        self.flight_speed.setSuffix(' м/с')
-        self.flight_speed.setValue(10.0)
-        self.flight_speed.valueChanged.connect(self.canvas.set_flight_speed)
-        speed_row.addWidget(self.flight_speed, 1)
-        layout.addWidget(self.flight_speed_row)
-
-        fov_row_widget = QWidget()
-        fov_row_widget.setMinimumWidth(0)
-        fov_row_widget.setSizePolicy(
-            QSizePolicy.Policy.Ignored,
-            QSizePolicy.Policy.Fixed,
-        )
-        fov_row = QHBoxLayout(fov_row_widget)
-        fov_row.setContentsMargins(0, 0, 0, 0)
-        fov_row.setSpacing(8)
-        fov_row.addWidget(self._control_label('Угол обзора'))
-        self.field_of_view = QDoubleSpinBox()
-        self.field_of_view.setMinimumWidth(0)
-        self.field_of_view.setSizePolicy(
-            QSizePolicy.Policy.Expanding,
-            QSizePolicy.Policy.Fixed,
-        )
-        self.field_of_view.setRange(20.0, 120.0)
-        self.field_of_view.setSingleStep(5.0)
-        self.field_of_view.setDecimals(0)
-        self.field_of_view.setSuffix('°')
-        self.field_of_view.setValue(75.0)
-        self.field_of_view.setToolTip(
-            'Угол обзора перспективной камеры. В оригинальном SmartLaser — 75°.'
-        )
-        self.field_of_view.valueChanged.connect(self.canvas.set_field_of_view)
-        fov_row.addWidget(self.field_of_view, 1)
-        layout.addWidget(fov_row_widget)
-
-        self.projection_combo = QComboBox()
-        self.projection_combo.setMinimumWidth(0)
-        self.projection_combo.setSizePolicy(
-            QSizePolicy.Policy.Ignored,
-            QSizePolicy.Policy.Fixed,
-        )
-        self.projection_combo.addItem('Перспектива', True)
-        self.projection_combo.addItem('Ортографическая', False)
-        self.projection_combo.currentIndexChanged.connect(
-            lambda index: self.canvas.set_projection(
-                bool(self.projection_combo.itemData(index))
-            )
-        )
-        layout.addWidget(self.projection_combo)
-
-        grid = QGridLayout()
-        grid.setSpacing(6)
-        views = (
-            ('Сверху', 'top', 0, 0),
-            ('Снизу', 'bottom', 0, 1),
-            ('Спереди', 'front', 1, 0),
-            ('Сзади', 'back', 1, 1),
-            ('Слева', 'left', 2, 0),
-            ('Справа', 'right', 2, 1),
-        )
-        for text, view, row, column in views:
-            button = QPushButton(text)
-            button.setObjectName('viewerMiniButton')
-            button.clicked.connect(lambda _checked=False, value=view: self.canvas.set_view(value))
-            grid.addWidget(button, row, column)
-        layout.addLayout(grid)
-
-        self.camera_hint = QLabel(
-            'Стрелки — сдвиг · W/S — масштаб · Home — сброс'
-        )
-        self.camera_hint.setObjectName('viewerMeta')
-        self.camera_hint.setWordWrap(True)
-        layout.addWidget(self.camera_hint)
-        reset_button = QPushButton('Сбросить камеру')
-        reset_button.setObjectName('viewerSecondaryButton')
-        reset_button.clicked.connect(self.canvas.reset_camera)
-        layout.addWidget(reset_button)
         return section
 
     def _build_tools_section(self) -> QFrame:
@@ -1388,26 +1478,32 @@ class PointCloudViewerDialog(QDialog):
         )
         self._set_color_button(self.line_color_button, self.canvas.line_color)
 
-    def _change_navigation_mode(self, index: int) -> None:
-        mode = str(self.navigation_combo.itemData(index))
+    def _set_navigation_mode(self, mode: str) -> None:
+        if mode not in {'orbit', 'flight'}:
+            return
         flight_enabled = mode == 'flight'
+        self.orbit_button.setChecked(not flight_enabled)
+        self.flight_button.setChecked(flight_enabled)
         self.canvas.set_navigation_mode(mode)
         self.flight_speed_row.setVisible(flight_enabled)
+        self.fov_separator.setVisible(flight_enabled)
         if flight_enabled:
-            self.camera_hint.setText(
-                'Кликните по сцене · WASD/ЦФЫВ — полёт · Space — вверх · '
-                'Shift — вниз · ЛКМ — направление взгляда · Home — сброс'
-            )
             self.tool_status.setText(
                 'Свободный полёт: WASD/ЦФЫВ · Space/Shift · ЛКМ — обзор'
             )
         else:
-            self.camera_hint.setText(
-                'Стрелки — сдвиг · W/S — масштаб · Home — сброс'
-            )
             self.tool_status.setText(
                 'ЛКМ — вращение · ПКМ — перемещение · колесо — масштаб'
             )
+        self.camera_toolbar.adjustSize()
+        self._position_camera_toolbar()
+        QTimer.singleShot(0, self.canvas.setFocus)
+
+    def _set_projection(self, perspective: bool) -> None:
+        self.perspective_button.setChecked(perspective)
+        self.orthographic_button.setChecked(not perspective)
+        self.field_of_view.setEnabled(perspective)
+        self.canvas.set_projection(perspective)
         QTimer.singleShot(0, self.canvas.setFocus)
 
     def _restore_settings(self) -> None:
@@ -1451,7 +1547,7 @@ class PointCloudViewerDialog(QDialog):
             self.settings.value('field_of_view', 75.0, type=float)
         )
         perspective = self.settings.value('perspective', True, type=bool)
-        self.projection_combo.setCurrentIndex(0 if perspective else 1)
+        self._set_projection(perspective)
         self.flight_speed.setValue(
             self.settings.value('flight_speed', 10.0, type=float)
         )
@@ -1460,9 +1556,7 @@ class PointCloudViewerDialog(QDialog):
             'orbit',
             type=str,
         )
-        navigation_index = self.navigation_combo.findData(navigation_mode)
-        self.navigation_combo.setCurrentIndex(max(0, navigation_index))
-        self._change_navigation_mode(self.navigation_combo.currentIndex())
+        self._set_navigation_mode(navigation_mode)
         profile_mode = self.settings.value('profile_clip_mode', 'inside', type=str)
         profile_mode_index = self.profile_clip_mode.findData(profile_mode)
         self.profile_clip_mode.setCurrentIndex(max(0, profile_mode_index))
@@ -1511,6 +1605,7 @@ class PointCloudViewerDialog(QDialog):
     def _apply_theme(self, dark: bool) -> None:
         theme = 'dark' if dark else 'light'
         self.setProperty('viewerTheme', theme)
+        self.camera_view_menu.setProperty('viewerTheme', theme)
         self.theme_toggle.setToolTip(
             'Включить светлую тему' if dark else 'Включить тёмную тему'
         )
@@ -1524,6 +1619,8 @@ class PointCloudViewerDialog(QDialog):
             widget.style().unpolish(widget)
             widget.style().polish(widget)
             widget.update()
+        self.camera_view_menu.style().unpolish(self.camera_view_menu)
+        self.camera_view_menu.style().polish(self.camera_view_menu)
         self.update()
 
     def _save_settings(self) -> None:
@@ -1549,10 +1646,10 @@ class PointCloudViewerDialog(QDialog):
             self.gradient_background.isChecked(),
         )
         self.settings.setValue('field_of_view', self.field_of_view.value())
-        self.settings.setValue('perspective', self.projection_combo.currentData())
+        self.settings.setValue('perspective', self.perspective_button.isChecked())
         self.settings.setValue(
             'navigation_mode',
-            self.navigation_combo.currentData(),
+            'flight' if self.flight_button.isChecked() else 'orbit',
         )
         self.settings.setValue('flight_speed', self.flight_speed.value())
         self.settings.setValue('profile_clip_mode', self.profile_clip_mode.currentData())
@@ -1776,6 +1873,7 @@ class PointCloudViewerDialog(QDialog):
         super().resizeEvent(event)
         if hasattr(self, 'canvas_card'):
             self._position_immersive_menu()
+            self._position_camera_toolbar()
 
     def reject(self) -> None:
         if self._immersive_mode:
