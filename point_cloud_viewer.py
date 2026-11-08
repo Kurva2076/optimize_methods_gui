@@ -113,6 +113,11 @@ class ViewerSection(QFrame):
         super().__init__(parent)
         self.title = title
         self.setObjectName('viewerSection')
+        self.setMinimumWidth(0)
+        self.setSizePolicy(
+            QSizePolicy.Policy.Ignored,
+            QSizePolicy.Policy.Preferred,
+        )
 
         outer_layout = QVBoxLayout(self)
         outer_layout.setContentsMargins(0, 0, 0, 0)
@@ -121,6 +126,11 @@ class ViewerSection(QFrame):
         self.header = QPushButton()
         self.header.setObjectName('viewerSectionHeader')
         self.header.setCheckable(True)
+        self.header.setMinimumWidth(0)
+        self.header.setSizePolicy(
+            QSizePolicy.Policy.Ignored,
+            QSizePolicy.Policy.Fixed,
+        )
         self.header.setChecked(True)
         self.header.setCursor(Qt.CursorShape.PointingHandCursor)
         self.header.toggled.connect(self.set_expanded)
@@ -128,6 +138,11 @@ class ViewerSection(QFrame):
 
         self.content = QWidget()
         self.content.setObjectName('viewerSectionContent')
+        self.content.setMinimumWidth(0)
+        self.content.setSizePolicy(
+            QSizePolicy.Policy.Ignored,
+            QSizePolicy.Policy.Preferred,
+        )
         self.content_layout = QVBoxLayout(self.content)
         self.content_layout.setContentsMargins(16, 0, 16, 16)
         self.content_layout.setSpacing(9)
@@ -144,6 +159,37 @@ class ViewerSection(QFrame):
 
     def is_expanded(self) -> bool:
         return self.header.isChecked()
+
+
+class AdaptiveControlsScroll(QScrollArea):
+    """Вертикальная панель, содержимое которой не может уехать по горизонтали."""
+
+    def __init__(self, parent: QWidget | None = None) -> None:
+        super().__init__(parent)
+        self.horizontalScrollBar().valueChanged.connect(
+            self._reset_horizontal_position
+        )
+
+    def setWidget(self, widget: QWidget) -> None:
+        super().setWidget(widget)
+        self._fit_content_width()
+
+    def resizeEvent(self, event: QResizeEvent) -> None:
+        super().resizeEvent(event)
+        self._fit_content_width()
+
+    def _fit_content_width(self) -> None:
+        content = self.widget()
+        if content is None:
+            return
+        viewport_width = max(0, self.viewport().width())
+        content.setMinimumWidth(viewport_width)
+        content.setMaximumWidth(viewport_width)
+        self.horizontalScrollBar().setValue(0)
+
+    def _reset_horizontal_position(self, value: int) -> None:
+        if value:
+            self.horizontalScrollBar().setValue(0)
 
 
 class PointCloudLoadWorker(QObject):
@@ -552,7 +598,7 @@ class PointCloudViewerDialog(QDialog):
         return card
 
     def _build_control_panel(self) -> QScrollArea:
-        scroll = QScrollArea()
+        scroll = AdaptiveControlsScroll()
         scroll.setObjectName('viewerControlsScroll')
         scroll.setWidgetResizable(True)
         scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
@@ -560,6 +606,11 @@ class PointCloudViewerDialog(QDialog):
 
         container = QWidget()
         container.setObjectName('viewerControls')
+        container.setMinimumWidth(0)
+        container.setSizePolicy(
+            QSizePolicy.Policy.Ignored,
+            QSizePolicy.Policy.Preferred,
+        )
         self.controls_layout = QVBoxLayout(container)
         self.controls_layout.setContentsMargins(0, 0, 0, 0)
         self.controls_layout.setSpacing(12)
@@ -782,6 +833,11 @@ class PointCloudViewerDialog(QDialog):
 
         layout.addWidget(self._control_label('Режим навигации'))
         self.navigation_combo = QComboBox()
+        self.navigation_combo.setMinimumWidth(0)
+        self.navigation_combo.setSizePolicy(
+            QSizePolicy.Policy.Ignored,
+            QSizePolicy.Policy.Fixed,
+        )
         self.navigation_combo.addItem('Орбитальная камера', 'orbit')
         self.navigation_combo.addItem('Свободный полёт', 'flight')
         self.navigation_combo.currentIndexChanged.connect(
@@ -789,22 +845,47 @@ class PointCloudViewerDialog(QDialog):
         )
         layout.addWidget(self.navigation_combo)
 
-        speed_row = QHBoxLayout()
+        self.flight_speed_row = QWidget()
+        self.flight_speed_row.setMinimumWidth(0)
+        self.flight_speed_row.setSizePolicy(
+            QSizePolicy.Policy.Ignored,
+            QSizePolicy.Policy.Fixed,
+        )
+        speed_row = QHBoxLayout(self.flight_speed_row)
+        speed_row.setContentsMargins(0, 0, 0, 0)
+        speed_row.setSpacing(8)
         speed_row.addWidget(self._control_label('Скорость полёта'))
         self.flight_speed = QDoubleSpinBox()
+        self.flight_speed.setMinimumWidth(0)
+        self.flight_speed.setSizePolicy(
+            QSizePolicy.Policy.Expanding,
+            QSizePolicy.Policy.Fixed,
+        )
         self.flight_speed.setDecimals(1)
         self.flight_speed.setRange(0.1, 100_000.0)
         self.flight_speed.setSingleStep(1.0)
         self.flight_speed.setSuffix(' м/с')
         self.flight_speed.setValue(10.0)
-        self.flight_speed.setEnabled(False)
         self.flight_speed.valueChanged.connect(self.canvas.set_flight_speed)
         speed_row.addWidget(self.flight_speed, 1)
-        layout.addLayout(speed_row)
+        layout.addWidget(self.flight_speed_row)
 
-        fov_row = QHBoxLayout()
+        fov_row_widget = QWidget()
+        fov_row_widget.setMinimumWidth(0)
+        fov_row_widget.setSizePolicy(
+            QSizePolicy.Policy.Ignored,
+            QSizePolicy.Policy.Fixed,
+        )
+        fov_row = QHBoxLayout(fov_row_widget)
+        fov_row.setContentsMargins(0, 0, 0, 0)
+        fov_row.setSpacing(8)
         fov_row.addWidget(self._control_label('Угол обзора'))
         self.field_of_view = QDoubleSpinBox()
+        self.field_of_view.setMinimumWidth(0)
+        self.field_of_view.setSizePolicy(
+            QSizePolicy.Policy.Expanding,
+            QSizePolicy.Policy.Fixed,
+        )
         self.field_of_view.setRange(20.0, 120.0)
         self.field_of_view.setSingleStep(5.0)
         self.field_of_view.setDecimals(0)
@@ -815,9 +896,14 @@ class PointCloudViewerDialog(QDialog):
         )
         self.field_of_view.valueChanged.connect(self.canvas.set_field_of_view)
         fov_row.addWidget(self.field_of_view, 1)
-        layout.addLayout(fov_row)
+        layout.addWidget(fov_row_widget)
 
         self.projection_combo = QComboBox()
+        self.projection_combo.setMinimumWidth(0)
+        self.projection_combo.setSizePolicy(
+            QSizePolicy.Policy.Ignored,
+            QSizePolicy.Policy.Fixed,
+        )
         self.projection_combo.addItem('Перспектива', True)
         self.projection_combo.addItem('Ортографическая', False)
         self.projection_combo.currentIndexChanged.connect(
@@ -1306,14 +1392,14 @@ class PointCloudViewerDialog(QDialog):
         mode = str(self.navigation_combo.itemData(index))
         flight_enabled = mode == 'flight'
         self.canvas.set_navigation_mode(mode)
-        self.flight_speed.setEnabled(flight_enabled)
+        self.flight_speed_row.setVisible(flight_enabled)
         if flight_enabled:
             self.camera_hint.setText(
-                'Кликните по сцене · WASD — полёт · Space — вверх · '
+                'Кликните по сцене · WASD/ЦФЫВ — полёт · Space — вверх · '
                 'Shift — вниз · ЛКМ — направление взгляда · Home — сброс'
             )
             self.tool_status.setText(
-                'Свободный полёт: WASD · Space/Shift · ЛКМ — обзор'
+                'Свободный полёт: WASD/ЦФЫВ · Space/Shift · ЛКМ — обзор'
             )
         else:
             self.camera_hint.setText(
