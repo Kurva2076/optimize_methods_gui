@@ -4,16 +4,26 @@ from pathlib import Path
 from PySide6.QtCore import QSize, Qt, QThread, QTimer, Slot
 from PySide6.QtGui import QColor, QPixmap
 from PySide6.QtWidgets import (
-    QFileDialog, QFrame, QHBoxLayout, QHeaderView, QLabel, QMessageBox,
-    QPushButton, QTableWidget, QTableWidgetItem, QVBoxLayout, QWidget,
+    QFileDialog,
+    QFrame,
+    QHBoxLayout,
+    QHeaderView,
+    QLabel,
+    QMessageBox,
+    QPushButton,
+    QTableWidget,
+    QTableWidgetItem,
+    QVBoxLayout,
+    QWidget,
 )
 
 from card import apply_shadow, create_card
+from point_cloud_viewer import PointCloudViewerDialog
+from popups.preprocessing_info_popup import PreprocessingInfoPopup
 from resources import icon
 from screens.base import BaseScreen
 from ui_components import DropZone, RotatingIcon, StyledProgressBar
 from workers import OptimizationWorker
-from popups.preprocessing_info_popup import PreprocessingInfoPopup
 
 
 class PreprocessingScreen(BaseScreen):
@@ -36,6 +46,7 @@ class PreprocessingScreen(BaseScreen):
 
         self.rotation_angle: int
         self.rotation_timer: QTimer
+        self._viewer_windows: set[PointCloudViewerDialog]
 
     def init_state(self) -> None:
         self.input_dir = ''
@@ -93,6 +104,7 @@ class PreprocessingScreen(BaseScreen):
         self.rotation_timer.setTimerType(Qt.TimerType.PreciseTimer)
         self.rotation_timer.setInterval(16)
         self.rotation_timer.timeout.connect(self.rotate_status_icon)
+        self._viewer_windows = set()
 
     def build_content(self, layout: QVBoxLayout) -> None:
         columns = QHBoxLayout()
@@ -153,6 +165,16 @@ class PreprocessingScreen(BaseScreen):
         self.additional_info_button.setEnabled(False)
         self.additional_info_button.clicked.connect(self.show_additional_info)
         files_header.addWidget(self.additional_info_button)
+
+        self.viewer_button = QPushButton('Открыть в 3D')
+        self.viewer_button.setObjectName('secondaryButton')
+        self.viewer_button.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.viewer_button.setEnabled(False)
+        self.viewer_button.setToolTip(
+            'Открыть выбранный файл или первый файл из списка в 3D-просмотрщике'
+        )
+        self.viewer_button.clicked.connect(self.open_3d_viewer)
+        files_header.addWidget(self.viewer_button)
         layout.addLayout(files_header)
 
         self.file_table = QTableWidget()
@@ -273,8 +295,11 @@ class PreprocessingScreen(BaseScreen):
     def select_output_dir(self) -> None:
         directory = QFileDialog.getExistingDirectory(self, 'Выберите папку для результатов')
         if directory:
-            self.output_dir = directory
-            self.output_label.setText(directory)
+            self.load_output_directory(directory)
+
+    def load_output_directory(self, directory: str) -> None:
+        self.output_dir = directory
+        self.output_label.setText(directory)
 
     def remove_file(self, file_path: Path) -> None:
         if file_path not in self.excluded_files:
@@ -285,6 +310,7 @@ class PreprocessingScreen(BaseScreen):
         self.file_table.setRowCount(0)
         files_to_show = [f for f in self.all_files if f not in self.excluded_files]
         self.files_count_label.setText(f'Выбранные файлы ({len(files_to_show)})')
+        self.viewer_button.setEnabled(bool(files_to_show))
 
         text_color = QColor('#171717')
         close_icon = icon('close.svg')
@@ -313,10 +339,37 @@ class PreprocessingScreen(BaseScreen):
             btn.clicked.connect(lambda checked=False, p=f: self.remove_file(p))
             self.file_table.setCellWidget(row, 4, btn)
 
+    def open_3d_viewer(self) -> None:
+        files_to_show = [f for f in self.all_files if f not in self.excluded_files]
+        if not files_to_show:
+            QMessageBox.warning(
+                self,
+                'Нет файлов',
+                'Сначала выберите папку с файлами облака точек.',
+            )
+            return
+
+        selected_row = self.file_table.currentRow()
+        initial_path = (
+            files_to_show[selected_row]
+            if 0 <= selected_row < len(files_to_show)
+            else files_to_show[0]
+        )
+        viewer = PointCloudViewerDialog(initial_path, self)
+        viewer.setAttribute(Qt.WidgetAttribute.WA_DeleteOnClose)
+        self._viewer_windows.add(viewer)
+        viewer.destroyed.connect(
+            lambda _object=None, window=viewer: self._viewer_windows.discard(window)
+        )
+        viewer.showMaximized()
+
     def _set_controls_enabled(self, enabled: bool) -> None:
         self.optimize_button.setEnabled(enabled)
         self.input_button.setEnabled(enabled)
         self.output_button.setEnabled(enabled)
+        self.viewer_button.setEnabled(
+            enabled and any(f not in self.excluded_files for f in self.all_files)
+        )
 
     def start_optimization(self) -> None:
         if not self.input_dir:

@@ -1,0 +1,523 @@
+QDialog#pointCloudViewer,
+QDialog#pointCloudViewer QWidget#viewerControls {
+    background-color: #F3F7FC;
+    color: #171717;
+}
+
+QFrame#viewerHeader,
+QFrame#viewerCanvasCard,
+QFrame#viewerSection {
+    background-color: #FFFFFF;
+    border: 1px solid #E4EAF2;
+    border-radius: 14px;
+}
+
+QLabel#viewerTitle {
+    color: #171717;
+    font-size: 20px;
+    font-weight: 700;
+}
+
+QLabel#viewerSubtitle,
+QLabel#viewerDialogSubtitle,
+QLabel#viewerMeta,
+QLabel#viewerCanvasStatus {
+    color: #737B89;
+    font-size: 12px;
+}
+
+QLabel#viewerDialogTitle {
+    color: #171717;
+    font-size: 20px;
+    font-weight: 700;
+}
+
+QLabel#viewerSectionTitle {
+    color: #171717;
+    font-size: 14px;
+    font-weight: 700;
+}
+
+QPushButton#viewerSectionHeader {
+    background-color: transparent;
+    color: #171717;
+    border: none;
+    border-radius: 13px;
+    min-height: 22px;
+    padding: 12px 16px;
+    text-align: left;
+    font-size: 14px;
+    font-weight: 700;
+}
+
+QPushButton#viewerSectionHeader:hover {
+    background-color: #EEF3FF;
+    color: #2F59DC;
+}
+
+QLabel#viewerFileName {
+    color: #171717;
+    font-size: 13px;
+    font-weight: 600;
+}
+
+QLabel#viewerControlLabel,
+QLabel#viewerClassName {
+    color: #343A46;
+    font-size: 12px;
+}
+
+QLabel#viewerClassControlLabel {
+    color: #7A8493;
+    font-size: 10px;
+}
+
+QLabel#viewerClassCount,
+QLabel#viewerValue {
+    color: #3867F5;
+    font-size: 12px;
+    font-weight: 700;
+}
+
+QLabel#viewerCanvasStatusAccent {
+    color: #3867F5;
+    font-size: 12px;
+    font-weight: 600;
+}
+
+QOpenGLWidget#pointCloudCanvas {
+    background-color: #09101E;
+    border: 1px solid #17243A;
+    border-radius: 10px;
+}
+
+QPushButton#viewerPrimaryButton,
+QPushButton#primaryButton {
+    background-color: #3867F5;
+    color: #FFFFFF;
+    border: none;
+    border-radius: 9px;
+    min-height: 20px;
+    padding: 9px 15px;
+    font-weight: 600;
+}
+
+QPushButton#viewerPrimaryButton:hover,
+QPushButton#primaryButton:hover {
+    background-color: #2F59DC;
+}
+
+QPushButton#viewerSecondaryButton,
+QPushButton#secondaryButton,
+QPushButton#viewerMiniButton,
+QPushButton#viewerToolButton {
+    background-color: #FFFFFF;
+    color: #343A46;
+    border: 1px solid #DDE4EE;
+    border-radius: 8px;
+    min-height: 20px;
+    padding: 8px 12px;
+    font-weight: 600;
+}
+
+QPushButton#viewerSecondaryButton:hover,
+QPushButton#secondaryButton:hover,
+QPushButton#viewerMiniButton:hover,
+QPushButton#viewerToolButton:hover {
+    background-color: #EEF3FF;
+    border-color: #AFC2FF;
+    color: #2F59DC;
+}
+
+QPushButton#viewerToolButton:checked {
+    background-color: #3867F5;
+    border-color: #3867F5;
+    color: #FFFFFF;
+}
+
+QPushButton#viewerSecondaryButton:disabled,
+QPushButton#secondaryButton:disabled {
+    background-color: #F5F7FA;
+    border-color: #E5E9F0;
+    color: #A0A8B5;
+}
+
+QFrame#viewerClassRow {
+    background-color: #F7F9FC;
+    border: 1px solid #E8EDF4;
+    border-radius: 9px;
+}
+
+QTabWidget#viewerProfileTabs::pane {
+    background-color: transparent;
+    border: none;
+    top: -1px;
+}
+
+QTabWidget#viewerProfileTabs QTabBar::tab {
+    background-color: #E9EEF6;
+    color: #5F6877;
+    border: 1px solid #DDE4EE;
+    border-bottom: none;
+    border-top-left-radius: 9px;
+    border-top-right-radius: 9px;
+    min-width: 180px;
+    padding: 10px 18px;
+    margin-right: 4px;
+    font-weight: 600;
+}
+
+QTabWidget#viewerProfileTabs QTabBar::tab:selected {
+    background-color: #3867F5;
+    color: #FFFFFF;
+    border-color: #3867F5;
+}
+
+QTabWidget#viewerProfileTabs QTabBar::tab:hover:!selected {
+    background-color: #EEF3FF;
+    color: #2F59DC;
+}
+
+QScrollArea#viewerControlsScroll {
+    background: transparent;
+    border: none;
+}
+
+QPushButton#viewerFloatingMenuButton {
+    background-color: rgba(17, 24, 39, 225);
+    color: #F8FAFC;
+    border: 1px solid #3C4D69;
+    border-radius: 10px;
+    font-size: 20px;
+    font-weight: 700;
+}
+
+QPushButton#viewerFloatingMenuButton:hover {
+    background-color: #3867F5;
+    border-color: #6D8DFF;
+}
+
+QDialog#pointCloudViewer[immersive="true"] {
+    background-color: #050A12;
+}
+
+QDialog#pointCloudViewer[immersive="true"] QFrame#viewerCanvasCard {
+    background-color: #050A12;
+    border: none;
+    border-radius: 0;
+}
+
+QDialog#pointCloudViewer[immersive="true"] QOpenGLWidget#pointCloudCanvas {
+    border: none;
+    border-radius: 0;
+}
+
+QDialog#pointCloudViewer[immersive="true"] QScrollArea#viewerControlsScroll {
+    background-color: rgba(7, 12, 22, 238);
+    border: 1px solid #2B3951;
+    border-radius: 10px;
+}
+
+QDialog#pointCloudViewer[immersive="true"] QWidget#viewerControls {
+    background-color: #070C16;
+}
+
+QDialog#pointCloudViewer[immersive="true"] QFrame#viewerSection {
+    background-color: rgba(12, 18, 31, 245);
+    border-color: #26354D;
+    border-radius: 7px;
+}
+
+QDialog#pointCloudViewer[immersive="true"] QPushButton#viewerSectionHeader {
+    color: #E7EDF7;
+    border-radius: 6px;
+    padding: 9px 12px;
+}
+
+QDialog#pointCloudViewer[immersive="true"] QPushButton#viewerSectionHeader:hover {
+    background-color: #182640;
+    color: #AFC3FF;
+}
+
+QScrollArea#viewerControlsScroll QScrollBar:vertical {
+    background: transparent;
+    width: 9px;
+    margin: 2px 0;
+}
+
+QScrollArea#viewerControlsScroll QScrollBar::handle:vertical {
+    background: #C9D3E2;
+    border-radius: 4px;
+    min-height: 34px;
+}
+
+QScrollArea#viewerControlsScroll QScrollBar::add-line:vertical,
+QScrollArea#viewerControlsScroll QScrollBar::sub-line:vertical,
+QScrollArea#viewerControlsScroll QScrollBar::add-page:vertical,
+QScrollArea#viewerControlsScroll QScrollBar::sub-page:vertical {
+    background: transparent;
+    height: 0;
+}
+
+QComboBox,
+QDoubleSpinBox {
+    background-color: #F7F9FC;
+    color: #343A46;
+    border: 1px solid #DDE4EE;
+    border-radius: 8px;
+    min-height: 22px;
+    padding: 7px 9px;
+}
+
+QDoubleSpinBox#viewerClassSize,
+QDoubleSpinBox#viewerClassMultiplier {
+    min-width: 48px;
+    max-width: 58px;
+    padding-left: 5px;
+    padding-right: 3px;
+}
+
+QMenu#viewerFileMenu,
+QMenu#viewerFileMenu QMenu {
+    background-color: #FFFFFF;
+    color: #343A46;
+    border: 1px solid #DDE4EE;
+    border-radius: 8px;
+    padding: 6px;
+}
+
+QMenu#viewerFileMenu::item,
+QMenu#viewerFileMenu QMenu::item {
+    border-radius: 6px;
+    padding: 8px 28px 8px 10px;
+}
+
+QMenu#viewerFileMenu::item:selected,
+QMenu#viewerFileMenu QMenu::item:selected {
+    background-color: #EEF3FF;
+    color: #2F59DC;
+}
+
+QMenu#viewerFileMenu::item:disabled,
+QMenu#viewerFileMenu QMenu::item:disabled {
+    color: #A0A8B5;
+}
+
+QMenu#viewerFileMenu::separator,
+QMenu#viewerFileMenu QMenu::separator {
+    background-color: #E7ECF3;
+    height: 1px;
+    margin: 5px 8px;
+}
+
+QComboBox:hover,
+QDoubleSpinBox:hover,
+QComboBox:focus,
+QDoubleSpinBox:focus {
+    border-color: #8EAAF9;
+}
+
+QComboBox QAbstractItemView {
+    background-color: #FFFFFF;
+    color: #343A46;
+    border: 1px solid #DDE4EE;
+    selection-background-color: #EEF3FF;
+    selection-color: #2F59DC;
+    padding: 4px;
+}
+
+QCheckBox {
+    color: #343A46;
+    spacing: 7px;
+}
+
+QCheckBox::indicator {
+    width: 16px;
+    height: 16px;
+    border: 1px solid #B9C4D3;
+    border-radius: 4px;
+    background-color: #FFFFFF;
+}
+
+QCheckBox::indicator:checked {
+    background-color: #3867F5;
+    border-color: #3867F5;
+}
+
+QSlider::groove:horizontal {
+    background-color: #E4EAF2;
+    border-radius: 3px;
+    height: 6px;
+}
+
+QSlider::sub-page:horizontal {
+    background-color: #3867F5;
+    border-radius: 3px;
+}
+
+QSlider::handle:horizontal {
+    background-color: #FFFFFF;
+    border: 2px solid #3867F5;
+    border-radius: 8px;
+    width: 14px;
+    margin: -5px 0;
+}
+
+QProgressBar#viewerLoadingBar {
+    background-color: #E8EDF4;
+    border: none;
+    border-radius: 4px;
+    color: #343A46;
+    min-height: 8px;
+    max-height: 8px;
+    text-align: center;
+}
+
+QProgressBar#viewerLoadingBar::chunk {
+    background-color: #3867F5;
+    border-radius: 4px;
+}
+
+/* Тёмная тема просмотрщика — сцена остаётся контрастной, панели становятся
+   близкими к оригинальному SmartLaser, но сохраняют стиль PointCloud. */
+QDialog#pointCloudViewer[viewerTheme="dark"],
+QDialog#pointCloudViewer[viewerTheme="dark"] QWidget#viewerControls {
+    background-color: #0B1120;
+    color: #E5E7EB;
+}
+
+QDialog#pointCloudViewer[viewerTheme="dark"] QFrame#viewerHeader,
+QDialog#pointCloudViewer[viewerTheme="dark"] QFrame#viewerCanvasCard,
+QDialog#pointCloudViewer[viewerTheme="dark"] QFrame#viewerSection {
+    background-color: #111827;
+    border-color: #253047;
+}
+
+QDialog#pointCloudViewer[viewerTheme="dark"] QLabel#viewerTitle,
+QDialog#pointCloudViewer[viewerTheme="dark"] QLabel#viewerDialogTitle,
+QDialog#pointCloudViewer[viewerTheme="dark"] QLabel#viewerSectionTitle,
+QDialog#pointCloudViewer[viewerTheme="dark"] QLabel#viewerFileName {
+    color: #F8FAFC;
+}
+
+QDialog#pointCloudViewer[viewerTheme="dark"] QPushButton#viewerSectionHeader {
+    color: #F8FAFC;
+}
+
+QDialog#pointCloudViewer[viewerTheme="dark"] QPushButton#viewerSectionHeader:hover {
+    background-color: #1E2D48;
+    color: #AFC3FF;
+}
+
+QDialog#pointCloudViewer[viewerTheme="dark"] QLabel#viewerSubtitle,
+QDialog#pointCloudViewer[viewerTheme="dark"] QLabel#viewerDialogSubtitle,
+QDialog#pointCloudViewer[viewerTheme="dark"] QLabel#viewerMeta,
+QDialog#pointCloudViewer[viewerTheme="dark"] QLabel#viewerCanvasStatus,
+QDialog#pointCloudViewer[viewerTheme="dark"] QLabel#viewerClassControlLabel {
+    color: #94A3B8;
+}
+
+QDialog#pointCloudViewer[viewerTheme="dark"] QLabel#viewerControlLabel,
+QDialog#pointCloudViewer[viewerTheme="dark"] QLabel#viewerClassName,
+QDialog#pointCloudViewer[viewerTheme="dark"] QCheckBox {
+    color: #CBD5E1;
+}
+
+QDialog#pointCloudViewer[viewerTheme="dark"] QFrame#viewerClassRow {
+    background-color: #162033;
+    border-color: #29364E;
+}
+
+QDialog#pointCloudViewer[viewerTheme="dark"] QPushButton#viewerSecondaryButton,
+QDialog#pointCloudViewer[viewerTheme="dark"] QPushButton#secondaryButton,
+QDialog#pointCloudViewer[viewerTheme="dark"] QPushButton#viewerMiniButton,
+QDialog#pointCloudViewer[viewerTheme="dark"] QPushButton#viewerToolButton {
+    background-color: #172033;
+    color: #D6DEEA;
+    border-color: #334155;
+}
+
+QDialog#pointCloudViewer[viewerTheme="dark"] QPushButton#viewerSecondaryButton:hover,
+QDialog#pointCloudViewer[viewerTheme="dark"] QPushButton#secondaryButton:hover,
+QDialog#pointCloudViewer[viewerTheme="dark"] QPushButton#viewerMiniButton:hover,
+QDialog#pointCloudViewer[viewerTheme="dark"] QPushButton#viewerToolButton:hover {
+    background-color: #1E2D48;
+    border-color: #587CF7;
+    color: #AFC3FF;
+}
+
+QDialog#pointCloudViewer[viewerTheme="dark"] QPushButton#viewerToolButton:checked {
+    background-color: #3867F5;
+    border-color: #5B82FF;
+    color: #FFFFFF;
+}
+
+QDialog#pointCloudViewer[viewerTheme="dark"] QComboBox,
+QDialog#pointCloudViewer[viewerTheme="dark"] QDoubleSpinBox {
+    background-color: #172033;
+    color: #E5E7EB;
+    border-color: #334155;
+}
+
+QDialog#pointCloudViewer[viewerTheme="dark"] QComboBox QAbstractItemView {
+    background-color: #172033;
+    color: #E5E7EB;
+    border-color: #334155;
+    selection-background-color: #253A6D;
+    selection-color: #FFFFFF;
+}
+
+QDialog#pointCloudViewer[viewerTheme="dark"] QCheckBox::indicator {
+    background-color: #111827;
+    border-color: #526075;
+}
+
+QDialog#pointCloudViewer[viewerTheme="dark"] QCheckBox::indicator:checked {
+    background-color: #3867F5;
+    border-color: #5B82FF;
+}
+
+QDialog#pointCloudViewer[viewerTheme="dark"] QSlider::groove:horizontal,
+QDialog#pointCloudViewer[viewerTheme="dark"] QProgressBar#viewerLoadingBar {
+    background-color: #29364E;
+    color: #E5E7EB;
+}
+
+QDialog#pointCloudViewer[viewerTheme="dark"] QSlider::handle:horizontal {
+    background-color: #E5E7EB;
+}
+
+QDialog#pointCloudViewer[viewerTheme="dark"] QTabWidget#viewerProfileTabs QTabBar::tab {
+    background-color: #172033;
+    color: #9AA8BC;
+    border-color: #334155;
+}
+
+QDialog#pointCloudViewer[viewerTheme="dark"] QTabWidget#viewerProfileTabs QTabBar::tab:selected {
+    background-color: #3867F5;
+    color: #FFFFFF;
+    border-color: #5B82FF;
+}
+
+QDialog#pointCloudViewer[viewerTheme="dark"] QScrollArea#viewerControlsScroll QScrollBar::handle:vertical {
+    background-color: #46546B;
+}
+
+QMenu#viewerFileMenu[viewerTheme="dark"],
+QDialog#pointCloudViewer[viewerTheme="dark"] QMenu#viewerFileMenu,
+QDialog#pointCloudViewer[viewerTheme="dark"] QMenu#viewerFileMenu QMenu {
+    background-color: #111827;
+    color: #E5E7EB;
+    border-color: #334155;
+}
+
+QDialog#pointCloudViewer[viewerTheme="dark"] QMenu#viewerFileMenu::item:selected,
+QDialog#pointCloudViewer[viewerTheme="dark"] QMenu#viewerFileMenu QMenu::item:selected {
+    background-color: #253A6D;
+    color: #FFFFFF;
+}
+
+QDialog#pointCloudViewer[viewerTheme="dark"] QMenu#viewerFileMenu::separator,
+QDialog#pointCloudViewer[viewerTheme="dark"] QMenu#viewerFileMenu QMenu::separator {
+    background-color: #334155;
+}

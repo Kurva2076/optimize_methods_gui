@@ -10,6 +10,7 @@ STYLE_FILES = [
     BASE_DIR / 'styles_shell.qss',
     BASE_DIR / 'styles_popup.qss',
     BASE_DIR / 'styles_training.qss',
+    BASE_DIR / 'styles_viewer.qss',
 ]
 
 
