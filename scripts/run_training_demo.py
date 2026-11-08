@@ -13,10 +13,12 @@ from PySide6.QtWidgets import QApplication
 
 from main import load_styles
 from main_window import MainWindow
+from qt_runtime import prepare_qt_runtime
 from screens.training import TrainingScreen
 
 
 def main() -> None:
+    prepare_qt_runtime()
     app = QApplication(sys.argv)
     app.setStyleSheet(load_styles())
 

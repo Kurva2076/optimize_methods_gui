@@ -4,6 +4,10 @@ from pathlib import Path
 
 import pytest
 
+from qt_runtime import prepare_qt_runtime
+
+prepare_qt_runtime()
+
 
 @pytest.fixture
 def completed_run(tmp_path: Path) -> Path:

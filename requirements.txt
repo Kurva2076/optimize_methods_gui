@@ -1,3 +1,4 @@
-PySide6>=6.7,<6.12
+PySide6>=6.7,<6.11
 numpy>=1.24.0
+laspy[lazrs]>=2.5,<3
 git+https://github.com/d2min/optimyze_methods.git@0a797a32ebe54d812cc0ea35a05a2af2fbcfa2f0
