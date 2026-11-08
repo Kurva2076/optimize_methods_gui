@@ -96,15 +96,21 @@ attribute float pointScale;
 uniform mat4 mvp;
 uniform float pointSize;
 uniform float perspectiveScale;
+uniform float minimumPointSize;
 uniform bool sizeAttenuation;
 varying vec3 vertexColor;
+varying float pointVisible;
 
 void main() {
     gl_Position = mvp * vec4(position, 1.0);
     float attenuation = sizeAttenuation
-        ? clamp(perspectiveScale / max(gl_Position.w, 0.001), 0.35, 12.0)
+        ? max(perspectiveScale / max(gl_Position.w, 0.001), 0.35)
         : 1.0;
-    gl_PointSize = pointSize * pointScale * attenuation;
+    float scaledPointSize = pointSize * pointScale * attenuation;
+    pointVisible = pointScale > 0.0 ? 1.0 : 0.0;
+    gl_PointSize = pointVisible > 0.5
+        ? max(scaledPointSize, minimumPointSize)
+        : 1.0;
     vertexColor = color;
 }
 """
@@ -113,12 +119,16 @@ void main() {
 FRAGMENT_SHADER = """
 #version 120
 varying vec3 vertexColor;
+varying float pointVisible;
 uniform bool roundPoints;
 uniform bool pointPass;
 uniform bool overrideColor;
 uniform vec3 solidColor;
 
 void main() {
+    if (pointPass && pointVisible < 0.5) {
+        discard;
+    }
     if (pointPass && roundPoints) {
         vec2 delta = gl_PointCoord - vec2(0.5);
         if (dot(delta, delta) > 0.25) {
@@ -422,7 +432,7 @@ class PointCloudCanvas(QOpenGLWidget):
         self.class_multipliers: dict[int, float] = {}
         self.color_mode = 'classification'
         self.gradient_name = 'RAINBOW'
-        self.round_points = True
+        self.round_points = False
         self.point_size = 1.0
         self.edge_detection = False
         self.size_attenuation = True
@@ -874,6 +884,10 @@ class PointCloudCanvas(QOpenGLWidget):
                 self.devicePixelRatioF(),
                 self.field_of_view,
             ),
+        )
+        self._program.setUniformValue1f(
+            self._program.uniformLocation('minimumPointSize'),
+            max(1.0, self.devicePixelRatioF()),
         )
         self._program.setUniformValue(
             'sizeAttenuation',

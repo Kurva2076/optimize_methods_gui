@@ -6,6 +6,7 @@ from PySide6.QtCore import Qt
 
 from point_cloud_canvas import (
     GRADIENTS,
+    VERTEX_SHADER,
     canonical_flight_key,
     class_point_scales,
     flight_displacement,
@@ -187,6 +188,11 @@ def test_perspective_point_scale_uses_viewport_and_fov() -> None:
 
     assert retina == pytest.approx(base * 2.0)
     assert wide_angle < base
+
+
+def test_point_shader_keeps_growing_when_camera_gets_closer() -> None:
+    assert 'clamp(perspectiveScale' not in VERTEX_SHADER
+    assert 'max(scaledPointSize, minimumPointSize)' in VERTEX_SHADER
 
 
 def test_flight_displacement_has_constant_diagonal_speed() -> None:
