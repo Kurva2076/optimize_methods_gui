@@ -5,11 +5,12 @@ import time
 from collections import deque
 
 import numpy as np
-from PySide6.QtCore import QPoint, QPointF, QRectF, Qt, QTimer, Signal
+from PySide6.QtCore import QPoint, QPointF, QRect, QRectF, Qt, QTimer, Signal
 from PySide6.QtGui import (
     QColor,
     QFocusEvent,
     QFont,
+    QGuiApplication,
     QKeyEvent,
     QMatrix4x4,
     QMouseEvent,
@@ -47,6 +48,7 @@ GL_TEXTURE_2D = 0x0DE1
 GL_FRAMEBUFFER = 0x8D40
 GL_LESS = 0x0201
 GL_LEQUAL = 0x0203
+CAMERA_DRAG_FRAME_INTERVAL = 1.0 / 60.0
 
 FLIGHT_KEYS = frozenset(
     {
@@ -58,6 +60,32 @@ FLIGHT_KEYS = frozenset(
         Qt.Key.Key_Shift,
     }
 )
+
+FLIGHT_CHARACTER_KEYS = {
+    'w': Qt.Key.Key_W,
+    'ц': Qt.Key.Key_W,
+    'a': Qt.Key.Key_A,
+    'ф': Qt.Key.Key_A,
+    's': Qt.Key.Key_S,
+    'ы': Qt.Key.Key_S,
+    'd': Qt.Key.Key_D,
+    'в': Qt.Key.Key_D,
+}
+
+
+def canonical_flight_key(key: int, text: str = '') -> Qt.Key | None:
+    """Вернуть клавишу движения независимо от латинской/русской раскладки."""
+    if key in FLIGHT_KEYS:
+        return Qt.Key(key)
+
+    characters = [text]
+    if 0 <= key <= 0x10FFFF:
+        characters.append(chr(key))
+    for value in characters:
+        canonical = FLIGHT_CHARACTER_KEYS.get(value.casefold())
+        if canonical is not None:
+            return canonical
+    return None
 
 
 VERTEX_SHADER = """
@@ -430,6 +458,8 @@ class PointCloudCanvas(QOpenGLWidget):
         self._last_hover_pick = 0.0
         self._last_mouse_position = QPoint()
         self._drag_button = Qt.MouseButton.NoButton
+        self._last_drag_repaint = 0.0
+        self._presenting_drag_frame = False
         self._angular_velocity = np.zeros(2, dtype=np.float64)
         self._pan_velocity = np.zeros(3, dtype=np.float64)
         self._pressed_keys: set[int] = set()
@@ -1418,6 +1448,7 @@ class PointCloudCanvas(QOpenGLWidget):
         self.setFocus(Qt.FocusReason.MouseFocusReason)
         self._last_mouse_position = event.position().toPoint()
         self._drag_button = event.button()
+        self._last_drag_repaint = 0.0
         if event.button() == Qt.MouseButton.LeftButton and self.tool_mode != 'camera':
             self._handle_pick(
                 event.position(),
@@ -1449,7 +1480,7 @@ class PointCloudCanvas(QOpenGLWidget):
             else:
                 self._angular_velocity[:] = (yaw_delta, pitch_delta)
             self._emit_camera_position()
-            self.update()
+            self._present_camera_drag_frame()
         elif buttons & (Qt.MouseButton.RightButton | Qt.MouseButton.MiddleButton):
             _eye, _forward, right, up = self._camera_basis()
             scale = self.distance / max(220.0, self.height())
@@ -1472,7 +1503,35 @@ class PointCloudCanvas(QOpenGLWidget):
         self._drag_button = Qt.MouseButton.NoButton
         if self.tool_mode == 'camera':
             self.setCursor(Qt.CursorShape.OpenHandCursor)
+            # Гарантируем финальный кадр, даже если отпускание пришлось между
+            # двумя ограниченными по частоте перерисовками.
+            self._present_camera_drag_frame(force=True)
         event.accept()
+
+    def _present_camera_drag_frame(self, *, force: bool = False) -> None:
+        """Нарисовать и скомпоновать кадр во время drag-сессии macOS."""
+        if self._presenting_drag_frame:
+            return
+        now = time.perf_counter()
+        if (
+            not force
+            and now - self._last_drag_repaint < CAMERA_DRAG_FRAME_INTERVAL
+        ):
+            return
+        self._last_drag_repaint = now
+        self._presenting_drag_frame = True
+        try:
+            # QOpenGLWidget рисует во внутренний framebuffer. Затем отдельно
+            # перерисовываем область верхнеуровневого окна, которая композитит
+            # эту текстуру, и синхронизируем Qt с оконной системой macOS.
+            self.repaint()
+            top_level = self.window()
+            if top_level is not self:
+                top_left = self.mapTo(top_level, QPoint(0, 0))
+                top_level.repaint(QRect(top_left, self.size()))
+            QGuiApplication.sync()
+        finally:
+            self._presenting_drag_frame = False
 
     def wheelEvent(self, event: QWheelEvent) -> None:
         steps = event.angleDelta().y() / 120.0
@@ -1498,8 +1557,9 @@ class PointCloudCanvas(QOpenGLWidget):
             self.reset_camera()
             event.accept()
             return
-        if self.navigation_mode == 'flight' and key in FLIGHT_KEYS:
-            self._pressed_keys.add(key)
+        flight_key = canonical_flight_key(key, event.text())
+        if self.navigation_mode == 'flight' and flight_key is not None:
+            self._pressed_keys.add(flight_key)
             event.accept()
             return
         if key in {Qt.Key.Key_Plus, Qt.Key.Key_Equal, Qt.Key.Key_W}:
@@ -1531,8 +1591,9 @@ class PointCloudCanvas(QOpenGLWidget):
 
     def keyReleaseEvent(self, event: QKeyEvent) -> None:
         key = event.key()
-        if self.navigation_mode == 'flight' and key in FLIGHT_KEYS:
-            self._pressed_keys.discard(key)
+        flight_key = canonical_flight_key(key, event.text())
+        if self.navigation_mode == 'flight' and flight_key is not None:
+            self._pressed_keys.discard(flight_key)
             event.accept()
             return
         super().keyReleaseEvent(event)

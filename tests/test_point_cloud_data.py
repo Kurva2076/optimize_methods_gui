@@ -2,9 +2,11 @@ from pathlib import Path
 
 import numpy as np
 import pytest
+from PySide6.QtCore import Qt
 
 from point_cloud_canvas import (
     GRADIENTS,
+    canonical_flight_key,
     class_point_scales,
     flight_displacement,
     interpolate_gradient,
@@ -214,6 +216,23 @@ def test_flight_displacement_supports_vertical_descent() -> None:
     )
 
     np.testing.assert_allclose(movement, [0.0, 0.0, -1.0])
+
+
+@pytest.mark.parametrize(
+    ('latin_key', 'russian_character'),
+    [
+        (Qt.Key.Key_W, 'ц'),
+        (Qt.Key.Key_A, 'ф'),
+        (Qt.Key.Key_S, 'ы'),
+        (Qt.Key.Key_D, 'в'),
+    ],
+)
+def test_flight_keys_support_russian_keyboard_layout(
+    latin_key: Qt.Key,
+    russian_character: str,
+) -> None:
+    assert canonical_flight_key(ord(russian_character.upper())) == latin_key
+    assert canonical_flight_key(0, russian_character) == latin_key
 
 
 def test_unsupported_file_is_rejected(tmp_path: Path) -> None:
