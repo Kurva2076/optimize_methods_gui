@@ -20,6 +20,8 @@ def test_immersive_layout_can_be_entered_hidden_and_closed(monkeypatch) -> None:
     assert viewer._immersive_mode is True
     assert viewer.header.isHidden()
     assert viewer.controls_panel.parent() is viewer.canvas_card
+    assert viewer.camera_toolbar.parent() is viewer.canvas_card
+    assert not viewer.camera_toolbar.isHidden()
     assert all(not section.is_expanded() for section in viewer._control_sections)
 
     appearance_section = viewer._control_sections[1]
@@ -31,6 +33,7 @@ def test_immersive_layout_can_be_entered_hidden_and_closed(monkeypatch) -> None:
 
     assert viewer.controls_panel.isHidden()
     assert not viewer.immersive_menu_button.isHidden()
+    assert not viewer.camera_toolbar.isHidden()
 
     viewer.reject()
 
@@ -160,15 +163,66 @@ def test_flight_speed_is_only_visible_in_free_flight() -> None:
     app = QApplication.instance() or QApplication([])
     viewer = PointCloudViewerDialog()
 
-    viewer.navigation_combo.setCurrentIndex(
-        viewer.navigation_combo.findData('orbit')
-    )
+    viewer.orbit_button.click()
     assert viewer.flight_speed_row.isHidden()
+    assert viewer.canvas.navigation_mode == 'orbit'
 
-    viewer.navigation_combo.setCurrentIndex(
-        viewer.navigation_combo.findData('flight')
-    )
+    viewer.flight_button.click()
     assert not viewer.flight_speed_row.isHidden()
+    assert viewer.canvas.navigation_mode == 'flight'
+
+    viewer.close()
+    app.processEvents()
+
+
+def test_camera_toolbar_controls_update_the_canvas(monkeypatch) -> None:
+    app = QApplication.instance() or QApplication([])
+    viewer = PointCloudViewerDialog()
+
+    viewer.field_of_view.setValue(90.0)
+    assert viewer.canvas.field_of_view == 90.0
+
+    viewer.orthographic_button.click()
+    assert viewer.canvas.perspective is False
+    assert not viewer.field_of_view.isEnabled()
+
+    viewer.perspective_button.click()
+    assert viewer.canvas.perspective is True
+    assert viewer.field_of_view.isEnabled()
+
+    viewer.flight_button.click()
+    viewer.flight_speed.setValue(42.5)
+    assert viewer.canvas.flight_speed == 42.5
+
+    selected_views: list[str] = []
+    monkeypatch.setattr(
+        viewer.canvas,
+        'set_view',
+        lambda view: selected_views.append(view),
+    )
+    viewer.camera_view_actions['top'].trigger()
+    assert selected_views == ['top']
+
+    viewer.canvas.distance = 123.0
+    viewer.camera_reset_button.click()
+    assert viewer.canvas.distance != 123.0
+
+    assert all(section.title != 'Камера' for section in viewer._control_sections)
+
+    viewer.close()
+    app.processEvents()
+
+
+def test_camera_toolbar_compacts_for_the_minimum_window_width() -> None:
+    app = QApplication.instance() or QApplication([])
+    viewer = PointCloudViewerDialog()
+    viewer.resize(viewer.minimumSize())
+    viewer.show()
+    viewer.flight_button.click()
+    app.processEvents()
+
+    assert viewer.camera_toolbar.property('compact') is True
+    assert viewer.camera_toolbar.width() <= viewer.canvas.width() - 24
 
     viewer.close()
     app.processEvents()
