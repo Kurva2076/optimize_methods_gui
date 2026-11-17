@@ -5,14 +5,15 @@ from PySide6.QtGui import QIcon
 from PySide6.QtWidgets import QApplication, QStyleFactory
 
 BASE_DIR = Path(__file__).resolve().parent
-IMAGES_DIR = BASE_DIR / 'images'
+IMAGES_DIR = BASE_DIR / 'assets' / 'images'
+STYLES_DIR = BASE_DIR / 'assets' / 'styles'
 DATA_DIR = BASE_DIR / 'data'
 STYLE_FILES = [
-    BASE_DIR / 'styles.qss',
-    BASE_DIR / 'styles_shell.qss',
-    BASE_DIR / 'styles_popup.qss',
-    BASE_DIR / 'styles_training.qss',
-    BASE_DIR / 'styles_viewer.qss',
+    STYLES_DIR / 'styles.qss',
+    STYLES_DIR / 'styles_shell.qss',
+    STYLES_DIR / 'styles_popup.qss',
+    STYLES_DIR / 'styles_training.qss',
+    STYLES_DIR / 'styles_viewer.qss',
 ]
 
 

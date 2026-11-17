@@ -1,8 +1,15 @@
 ## Репозиторий серой команды (GUI приложение для методов оптимизации)
 
+## Сборка exe-шника
+
+### Для Windows:
+```commandline
+pyinstaller --clean --noconfirm --onedir --windowed --name OptimizeMethods --add-data "assets;assets" main.py
+```
+
 Подробнее про методы оптимизации: https://github.com/d2min/optimyze_methods/
 
-Установка зависимостей:
+## Установка зависимостей:
 ```commandline
 python -m pip install -r requirements.txt
 ```
@@ -13,7 +20,7 @@ python -m pip install -r requirements.txt
 облаков точек. Он открывает файлы `.xyz`, `.txt`, `.pts`, `.las` и `.laz`
 и не требует отдельной установки SmartLaser Point Viewer.
 
-Основные возможности:
+### Основные возможности:
 
 - исходная палитра классов SmartLaser, девять точных градиентов высоты и
   отображение RGB-цветов из файла;
