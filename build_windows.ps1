@@ -32,4 +32,4 @@ if (-not (Test-Path $python)) {
     main.py
 
 Write-Host ''
-Write-Host 'Один exe готов:' (Join-Path $PSScriptRoot 'dist\PointCloudMLStudio.exe')
+Write-Host 'Windows executable is ready:' (Join-Path $PSScriptRoot 'dist\PointCloudMLStudio.exe')
