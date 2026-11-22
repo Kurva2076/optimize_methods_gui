@@ -6,11 +6,13 @@ from PySide6.QtWidgets import QApplication, QStyleFactory
 
 BASE_DIR = Path(__file__).resolve().parent
 IMAGES_DIR = BASE_DIR / 'assets' / 'images'
+ICONS_DIR = BASE_DIR / 'assets' / 'icons'
 STYLES_DIR = BASE_DIR / 'assets' / 'styles'
 DATA_DIR = BASE_DIR / 'data'
 STYLE_FILES = [
     STYLES_DIR / 'styles.qss',
     STYLES_DIR / 'styles_shell.qss',
+    STYLES_DIR / 'styles_studio.qss',
     STYLES_DIR / 'styles_popup.qss',
     STYLES_DIR / 'styles_training.qss',
     STYLES_DIR / 'styles_viewer.qss',
@@ -38,6 +40,10 @@ def apply_application_style(app: QApplication) -> None:
 
 def image_path(name: str) -> Path:
     return IMAGES_DIR / name
+
+
+def studio_icon_path(name: str) -> Path:
+    return ICONS_DIR / name
 
 
 def icon(name: str) -> QIcon:

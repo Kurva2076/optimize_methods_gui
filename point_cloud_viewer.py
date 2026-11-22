@@ -960,7 +960,7 @@ class PointCloudViewerDialog(QDialog):
         self.filename_label.setWordWrap(True)
         self.points_label = QLabel('—')
         self.points_label.setObjectName('viewerMeta')
-        self.range_label = QLabel('Перетащите XYZ, TXT, PTS, LAS или LAZ в окно')
+        self.range_label = QLabel('Перетащите XYZ, TXT, PTS, LAS, LAZ или NPY в окно')
         self.range_label.setObjectName('viewerMeta')
         self.range_label.setWordWrap(True)
         self.load_all_points = QCheckBox('Загружать все точки без ограничения')
@@ -1200,7 +1200,7 @@ class PointCloudViewerDialog(QDialog):
             self,
             'Выберите облако точек',
             start_directory,
-            'Облака точек (*.xyz *.txt *.pts *.las *.laz);;Все файлы (*)',
+            'Облака точек (*.xyz *.txt *.pts *.las *.laz *.npy);;Все файлы (*)',
         )
         if selected:
             self.load_file(Path(selected))
@@ -1229,7 +1229,7 @@ class PointCloudViewerDialog(QDialog):
             QMessageBox.warning(
                 self,
                 'Неподдерживаемый формат',
-                'Выберите XYZ, TXT, PTS, LAS или LAZ.',
+                'Выберите XYZ, TXT, PTS, LAS, LAZ или NPY.',
             )
             return
 

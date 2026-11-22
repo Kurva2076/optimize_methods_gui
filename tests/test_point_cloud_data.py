@@ -76,6 +76,40 @@ def test_text_loader_keeps_every_point_by_default(tmp_path: Path) -> None:
     assert not cloud.sampled
 
 
+def test_load_ml_studio_npy_uses_class_and_xyz_columns(tmp_path: Path) -> None:
+    source = tmp_path / 'scene_001_cleaned.npy'
+    values = np.asarray(
+        [
+            [2, 10, 20, 30, 999, 0, 0, 0, 0],
+            [5, 11, 22, 33, 999, 0, 0, 0, 0],
+            [6, 12, 24, 36, 999, 0, 0, 0, 0],
+        ],
+        dtype=np.float32,
+    )
+    np.save(source, values)
+
+    cloud = load_point_cloud(source)
+
+    assert cloud.source_count == 3
+    assert cloud.class_counts() == {2: 1, 5: 1, 6: 1}
+    np.testing.assert_allclose(cloud.original_points, values[:, 1:4])
+
+
+def test_npy_loader_samples_across_the_whole_array(tmp_path: Path) -> None:
+    source = tmp_path / 'scene_002_cleaned.npy'
+    values = np.zeros((100, 9), dtype=np.float32)
+    values[:, 0] = 2
+    values[:, 1] = np.arange(100)
+    np.save(source, values)
+
+    cloud = load_point_cloud(source, max_points=10)
+
+    assert cloud.source_count == 100
+    assert cloud.rendered_count == 10
+    assert cloud.original_points[:, 0].min() == 0
+    assert cloud.original_points[:, 0].max() == 99
+
+
 def test_loader_skips_malformed_rows_and_reads_rgb(tmp_path: Path) -> None:
     source = _write_cloud(
         tmp_path / 'rgb.xyz',
@@ -244,5 +278,5 @@ def test_flight_keys_support_russian_keyboard_layout(
 def test_unsupported_file_is_rejected(tmp_path: Path) -> None:
     source = _write_cloud(tmp_path / 'cloud.csv', ['2 1 2 3'])
 
-    with pytest.raises(PointCloudLoadError, match='XYZ, TXT, PTS, LAS и LAZ'):
+    with pytest.raises(PointCloudLoadError, match='XYZ, TXT, PTS, LAS, LAZ и NPY'):
         load_point_cloud(source)

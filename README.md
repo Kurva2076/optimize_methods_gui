@@ -1,11 +1,46 @@
-## Репозиторий серой команды (GUI приложение для методов оптимизации)
+## PointCloud ML Studio
+
+Единое нативное приложение PySide6 объединяет исходный бело-синий workflow
+PointCloud, OpenGL-просмотрщик и функциональность ML Studio команды
+тестирования.
+
+- шаг 1 — исходные `.xyz` и предобработка;
+- шаг 2 — подготовленные `exports*/scene_*.npy`, настройка нейросети и запуск HPO;
+- шаг 3 — прогоны, Live-логи, метрики обучения;
+- шаг 4 — тестирование и агрегация;
+- шаг 5 — модели, отчёты и другие артефакты.
+
+Левая панель открывает реальные разделы «Проекты», «Датасеты», «Запуски»,
+«Live», «Тестирование», «Сценарии», «Артефакты» и «Окружение». Файловая
+система остаётся источником правды: приложение читает `exports*/`, `runs/`,
+`tests/` и `scenarios/`, а не создаёт отдельную базу данных.
+
+Что доступно в объединённой версии:
+
+- светлая и тёмная темы, счётчики датасетов/запусков и активные
+  процессы в боковой панели;
+- мини-копии датасетов с равномерным выбором сцен и безопасной отменой;
+- одиночный `hpo_pointnet.py` и пакетный `run_all.py`, ручные
+  гиперпараметры, дополнительные CLI-аргументы и точный предпросмотр команды;
+- сравнение прогонов, заметки, продолжение исследования, финальный прогон
+  и перенос в корзину с двухшаговым подтверждением;
+- Live-графики F1/baseline, таблицы эпох и сцен, полный лог на диске и
+  остановка дерева дочерних процессов;
+- многосценовое тестирование, confusion matrix и 3D-режимы
+  «Классы / Предсказание / Ошибки»;
+- пошаговый редактор сценариев и автоустановка `.venv311` на Windows.
 
 ## Сборка exe-шника
 
 ### Для Windows:
 ```commandline
-pyinstaller --clean --noconfirm --onedir --windowed --name OptimizeMethods --add-data "assets;assets" main.py
+powershell -ExecutionPolicy Bypass -File .\build_windows.ps1
 ```
+
+Готовый однофайловый exe появится в
+`dist\PointCloudMLStudio.exe`. Скрипт сборки добавляет не
+только стили, но и вычислительное ядро HPO, поэтому packaged-приложение не
+теряет `hpo_pointnet.py` и `predict_scene.py`.
 
 Подробнее про методы оптимизации: https://github.com/d2min/optimyze_methods/
 
@@ -13,6 +48,19 @@ pyinstaller --clean --noconfirm --onedir --windowed --name OptimizeMethods --add
 ```commandline
 python -m pip install -r requirements.txt
 ```
+
+Для обучения нужен отдельный Python 3.11. На Windows откройте раздел
+«Окружение» и нажмите «Установить окружение» либо запустите
+`setup_ml_environment.cmd`. Скрипт создаст `.venv311` и установит совместимые
+PyTorch, PyG, torch-pointcloud и Optuna. Вывод установки виден в Live.
+
+## Раздел «Датасеты»
+
+Экран относится ко второму этапу «Настройка нейросети». Он находит каталоги
+`exports*` рядом с `hpo_pointnet.py`, читает только заголовки
+`scene_*.npy` для таблицы и статистики, а выбранную сцену показывает во
+встроенном OpenGL-просмотрщике. Кнопка «Запустить обучение» строит точную
+команду `hpo_pointnet.py`; stdout/stderr и последний F1 отображаются в Live.
 
 ## 3D-просмотр облаков точек
 
@@ -164,5 +212,11 @@ py -3.12 -m venv .venv
 ```commandline
 python -m pip install -r requirements-dev.txt
 python -m pytest -q
-python -m ruff check training_results.py screens/training.py tests
+python -m ruff check main.py main_window.py point_cloud_data.py point_cloud_viewer.py \
+    resources.py screens/studio.py screens/studio_advanced.py studio_*.py tests
+python main.py --smoke-test
 ```
+
+Workflow `.github/workflows/windows-build.yml` выполняет весь `pytest`,
+собирает exe на `windows-latest`, запускает `--smoke-test` уже из
+упакованного файла и публикует готовый exe как artifact.

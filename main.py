@@ -39,6 +39,11 @@ def parse_application_arguments(
         type=existing_directory,
         help='заранее выбрать существующую папку для результатов',
     )
+    parser.add_argument(
+        '--smoke-test',
+        action='store_true',
+        help='создать все экраны, проверить ресурсы и завершиться',
+    )
     return parser.parse_known_args(arguments)
 
 
@@ -74,6 +79,10 @@ def main() -> None:
         arguments.input_dir,
         arguments.output_dir,
     )
+    if arguments.smoke_test:
+        app.processEvents()
+        window.close()
+        return
     window.show()
     sys.exit(app.exec())
 

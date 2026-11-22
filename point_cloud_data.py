@@ -11,7 +11,7 @@ import numpy as np
 ProgressCallback = Callable[[int], None]
 CancelCallback = Callable[[], bool]
 
-SUPPORTED_POINT_CLOUD_EXTENSIONS = {'.xyz', '.txt', '.pts', '.las', '.laz'}
+SUPPORTED_POINT_CLOUD_EXTENSIONS = {'.xyz', '.txt', '.pts', '.las', '.laz', '.npy'}
 
 
 class PointCloudLoadError(ValueError):
@@ -134,7 +134,7 @@ def load_point_cloud(
         raise FileNotFoundError(f'Файл не найден: {file_path}')
     if file_path.suffix.lower() not in SUPPORTED_POINT_CLOUD_EXTENSIONS:
         raise PointCloudLoadError(
-            'Поддерживаются файлы XYZ, TXT, PTS, LAS и LAZ.'
+            'Поддерживаются файлы XYZ, TXT, PTS, LAS, LAZ и NPY.'
         )
     if max_points is not None and max_points < 1:
         raise ValueError('max_points должен быть положительным')
@@ -150,6 +150,13 @@ def load_point_cloud(
             progress=progress_callback,
             cancelled=cancel_callback,
         )
+    elif file_path.suffix.lower() == '.npy':
+        result = _load_npy(
+            file_path,
+            max_points=max_points,
+            progress=progress_callback,
+            cancelled=cancel_callback,
+        )
     else:
         result = _load_text(
             file_path,
@@ -160,6 +167,98 @@ def load_point_cloud(
 
     progress_callback(100)
     return result
+
+
+def _load_npy(
+    path: Path,
+    *,
+    max_points: int | None,
+    progress: ProgressCallback,
+    cancelled: CancelCallback,
+) -> PointCloudData:
+    """Загрузить сцену ML Studio ``[class, x, y, z, ...]`` через memmap.
+
+    Даже миллион точек не дублируется в памяти при чтении: ``numpy`` отображает
+    файл, после чего копируются только необходимые столбцы и, при необходимости,
+    равномерная выборка для OpenGL.
+    """
+    try:
+        source = np.load(path, mmap_mode='r', allow_pickle=False)
+    except (OSError, ValueError) as error:
+        raise PointCloudLoadError(f'Не удалось открыть NPY: {error}') from error
+
+    try:
+        if source.ndim != 2 or source.shape[0] < 1:
+            raise PointCloudLoadError('Ожидался двумерный массив NPY с точками.')
+        rows, columns = source.shape
+        if columns == 3:
+            coordinate_columns = slice(0, 3)
+            class_column: int | None = None
+        elif columns >= 4:
+            coordinate_columns = slice(1, 4)
+            class_column = 0
+        else:
+            raise PointCloudLoadError(
+                'В NPY должны быть столбцы X, Y, Z либо class, X, Y, Z.'
+            )
+
+        if cancelled():
+            raise PointCloudLoadCancelled('Загрузка отменена')
+        progress(15)
+
+        if max_points is not None and rows > max_points:
+            indices: slice | np.ndarray = np.linspace(
+                0,
+                rows - 1,
+                num=max_points,
+                dtype=np.int64,
+            )
+        else:
+            indices = slice(None)
+
+        selected = np.asarray(source[indices])
+        progress(55)
+        if cancelled():
+            raise PointCloudLoadCancelled('Загрузка отменена')
+
+        points = np.asarray(selected[:, coordinate_columns], dtype=np.float64)
+        if class_column is None:
+            classes = np.zeros(len(points), dtype=np.int32)
+        else:
+            raw_classes = np.nan_to_num(
+                selected[:, class_column],
+                nan=0.0,
+                posinf=0.0,
+                neginf=0.0,
+            )
+            classes = np.rint(raw_classes).astype(np.int32, copy=False)
+
+        finite = np.isfinite(points).all(axis=1)
+        invalid_count = int(len(points) - np.count_nonzero(finite))
+        points = points[finite]
+        classes = classes[finite]
+        if not len(points):
+            raise PointCloudLoadError('В NPY нет корректных координат.')
+
+        bounds_min = points.min(axis=0)
+        bounds_max = points.max(axis=0)
+        center = (bounds_min + bounds_max) / 2.0
+        centered = np.asarray(points - center, dtype=np.float32)
+        progress(90)
+        return PointCloudData(
+            path=path,
+            points=centered,
+            classes=np.asarray(classes, dtype=np.int32),
+            center=center,
+            bounds_min=bounds_min,
+            bounds_max=bounds_max,
+            source_count=int(rows),
+            invalid_count=invalid_count,
+        )
+    finally:
+        mmap = getattr(source, '_mmap', None)
+        if mmap is not None:
+            mmap.close()
 
 
 def save_point_cloud(cloud: PointCloudData, path: str | Path) -> Path:

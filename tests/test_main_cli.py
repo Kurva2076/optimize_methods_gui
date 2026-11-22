@@ -31,6 +31,13 @@ def test_parse_application_arguments_accepts_initial_directories(
     assert qt_arguments == ['-style', 'fusion']
 
 
+def test_parse_application_arguments_accepts_packaged_smoke_test() -> None:
+    arguments, qt_arguments = parse_application_arguments(['--smoke-test'])
+
+    assert arguments.smoke_test is True
+    assert qt_arguments == []
+
+
 def test_apply_initial_directories_fills_preprocessing_screen(
     tmp_path: Path,
 ) -> None:

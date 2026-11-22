@@ -4,3 +4,12 @@ __pycache__/
 .ruff_cache/
 .venv/
 .DS_Store
+.venv311/
+build/
+dist/
+PointCloudMLStudio.spec
+runs/
+exports*/
+scenarios/.runtime/
+.studio_logs/
+.mlstudio-environment.json
