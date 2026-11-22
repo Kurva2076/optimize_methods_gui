@@ -84,9 +84,22 @@ def parse_extra_arguments(value: str) -> list[str]:
     """Разобрать дополнительные CLI-аргументы без запуска shell."""
     if not value.strip():
         return []
-    # POSIX-режим считает ``\`` экранированием и ломает
-    # обычные Windows-пути вроде C:\\data\\exports.
-    arguments = shlex.split(value, posix=os.name != 'nt')
+    if os.name == 'nt':
+        # POSIX-режим считает ``\`` экранированием и ломает
+        # обычные Windows-пути вроде C:\\data\\exports. Режим
+        # posix=False сохраняет пути, но оставляет обрамляющие
+        # кавычки, поэтому снимаем только целую внешнюю пару.
+        raw_arguments = shlex.split(value, posix=False)
+        arguments = [
+            argument[1:-1]
+            if len(argument) >= 2
+            and argument[0] == argument[-1]
+            and argument[0] in {'"', "'"}
+            else argument
+            for argument in raw_arguments
+        ]
+    else:
+        arguments = shlex.split(value, posix=True)
     if any('\x00' in argument for argument in arguments):
         raise ValueError('аргументы не могут содержать NUL')
     return arguments
