@@ -390,6 +390,9 @@ def _gpu_percent() -> float | None:
             text=True,
             timeout=0.8,
             check=False,
+            # A windowed PyInstaller build has no parent console. Without this
+            # flag Windows briefly creates one every time the GPU meter polls.
+            creationflags=getattr(subprocess, 'CREATE_NO_WINDOW', 0),
         )
     except (OSError, subprocess.SubprocessError):
         return None

@@ -5,10 +5,35 @@ from PySide6.QtCore import QSettings
 from PySide6.QtTest import QSignalSpy, QTest
 from PySide6.QtWidgets import QApplication
 
+import studio_widgets
 from resources import apply_application_style
 from studio_context import StudioContext
 from studio_theme import apply_studio_theme, stylesheet_for
 from studio_widgets import StudioSidebar
+
+
+def test_gpu_poll_does_not_open_windows_console(monkeypatch) -> None:
+    create_no_window = 0x08000000
+    captured: dict[str, object] = {}
+
+    class Result:
+        returncode = 0
+        stdout = '37\n'
+
+    def fake_run(*_args, **kwargs):
+        captured.update(kwargs)
+        return Result()
+
+    monkeypatch.setattr(
+        studio_widgets.subprocess,
+        'CREATE_NO_WINDOW',
+        create_no_window,
+        raising=False,
+    )
+    monkeypatch.setattr(studio_widgets.subprocess, 'run', fake_run)
+
+    assert studio_widgets._gpu_percent() == 37.0
+    assert captured['creationflags'] == create_no_window
 
 
 def _settings(tmp_path: Path) -> QSettings:
