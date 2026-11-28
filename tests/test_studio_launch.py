@@ -6,6 +6,7 @@ import pytest
 from PySide6.QtWidgets import QApplication
 
 import studio_dialogs
+import studio_environment
 from studio_dialogs import (
     FIXED_PARAM_DEFAULTS,
     LaunchDialog,
@@ -56,6 +57,8 @@ def test_single_launch_command_uses_real_hpo_arguments(tmp_path: Path) -> None:
     )
     assert command[command.index('--target') + 1] == 'vegetation'
     assert command[command.index('--features') + 1] == 'xyz_hag'
+    assert '--equibatch' in command
+    assert command[command.index('--equibatch-positive-fraction') + 1] == '0.5'
     assert command[-2:] == ['--boundary-space', 'xy']
     assert '--fixed-params' in command
     dialog.deleteLater()
@@ -137,6 +140,44 @@ def test_environment_check_is_explicit_when_venv_missing(tmp_path: Path) -> None
     status = inspect_environment(tmp_path)
     assert status.ready is False
     assert status.error == '.venv311 не найдена'
+
+
+def test_windows_environment_check_never_opens_console(tmp_path: Path, monkeypatch) -> None:
+    python = tmp_path / '.venv311' / 'Scripts' / 'python.exe'
+    python.parent.mkdir(parents=True)
+    python.touch()
+    captured: dict[str, object] = {}
+
+    class Result:
+        returncode = 0
+        stdout = json.dumps(
+            {
+                'python': '3.11.9',
+                'numpy': '2.0',
+                'torch': '2.8',
+                'optuna': '4.0',
+                'torch_pointcloud': '0.0.16',
+                'cuda': True,
+            }
+        )
+        stderr = ''
+
+    def fake_run(*_args, **kwargs):
+        captured.update(kwargs)
+        return Result()
+
+    monkeypatch.setattr(studio_environment, 'environment_python', lambda _root: python)
+    monkeypatch.setattr(
+        studio_environment,
+        'hidden_process_creation_flags',
+        lambda: 0x08000000,
+    )
+    monkeypatch.setattr(studio_environment.subprocess, 'run', fake_run)
+
+    status = inspect_environment(tmp_path)
+
+    assert status.ready is True
+    assert captured['creationflags'] == 0x08000000
 
 
 def test_windows_build_is_one_file() -> None:

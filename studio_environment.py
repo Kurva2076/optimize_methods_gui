@@ -34,6 +34,15 @@ def environment_python(project_root: Path) -> Path:
     return project_root / '.venv311' / 'bin' / 'python'
 
 
+def hidden_process_creation_flags() -> int:
+    """Не создавать консоль для коротких диагностических процессов Windows."""
+    return (
+        getattr(subprocess, 'CREATE_NO_WINDOW', 0)
+        if os.name == 'nt'
+        else 0
+    )
+
+
 def inspect_environment(project_root: str | Path, timeout: float = 12.0) -> EnvironmentStatus:
     root = Path(project_root).expanduser().resolve()
     python = environment_python(root)
@@ -60,6 +69,7 @@ def inspect_environment(project_root: str | Path, timeout: float = 12.0) -> Envi
             errors='replace',
             timeout=timeout,
             check=False,
+            creationflags=hidden_process_creation_flags(),
         )
         data = json.loads(completed.stdout.splitlines()[-1]) if completed.stdout else {}
     except (OSError, subprocess.SubprocessError, ValueError, IndexError) as error:

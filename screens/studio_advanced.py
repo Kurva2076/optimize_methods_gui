@@ -76,6 +76,33 @@ TARGET_CLASS_IDS = {
     'water': (9,),
 }
 
+TEST_CLASS_COLORS = {
+    1: '#64748B',
+    2: '#FF7A45',
+    3: '#22C55E',
+    4: '#34D399',
+    5: '#86EFAC',
+    6: '#FF304F',
+    7: '#C026D3',
+    9: '#00B8F0',
+    18: '#E879F9',
+}
+
+ERROR_COLORS = {
+    1: '#64748B',   # TN
+    3: '#22C55E',   # TP
+    6: '#FF304F',   # FP
+    9: '#00B8F0',   # FN
+    7: '#C026D3',   # не покрыто
+}
+
+
+def _legend_html(items: tuple[tuple[str, str], ...]) -> str:
+    return ' &nbsp; '.join(
+        f'<span style="color:{color}; font-size:18px;">●</span> {title}'
+        for title, color in items
+    )
+
 LIVE_METRIC_PATTERN = re.compile(
     r'(?:trial\s*[=:]\s*(?P<trial>\d+).*?)?'
     r'(?:epoch\s*[=:]\s*(?P<epoch>\d+).*?)?'
@@ -171,18 +198,22 @@ def _metrics_path(run: RunInfo) -> Path | None:
     return None
 
 
-def _metric_series(path: Path | None) -> list[float]:
+def _metric_rows(path: Path | None) -> list[dict[str, str]]:
     if path is None:
         return []
     try:
         with path.open(encoding='utf-8-sig', newline='') as stream:
-            rows = list(csv.DictReader(stream))
+            return list(csv.DictReader(stream))
     except (OSError, csv.Error):
         return []
+
+
+def _metric_series(path: Path | None, key: str = 'f1') -> list[float]:
+    rows = _metric_rows(path)
     values: list[float] = []
     for row in rows:
         try:
-            values.append(float(row.get('f1', '')))
+            values.append(float(row.get(key, '')))
         except (TypeError, ValueError):
             continue
     return values
@@ -210,17 +241,43 @@ def parse_live_metrics(text: str) -> list[dict[str, float | int | None]]:
 
 
 class SeriesChart(QWidget):
-    """Лёгкий Qt-график без внешнего движка и выдуманных точек."""
+    """Qt-график с осями, несколькими рядами и значениями при наведении."""
+
+    COLORS = ('#356DF3', '#F59E0B', '#10B981', '#E34D59')
 
     def __init__(self, parent: QWidget | None = None) -> None:
         super().__init__(parent)
         self.values: list[float] = []
+        self.series: dict[str, list[float]] = {}
+        self.x_values: list[float] = []
         self.baseline: float | None = None
-        self.setMinimumHeight(150)
+        self.empty_message = 'Нет metrics.csv / Live-метрик'
+        self._plot_area = QRectF()
+        self.setMinimumHeight(210)
+        self.setMouseTracking(True)
 
     def set_values(self, values: list[float], baseline: float | None = None) -> None:
-        self.values = [value for value in values if math.isfinite(value)]
+        self.set_series({'Значение': values}, baseline=baseline)
+
+    def set_series(
+        self,
+        series: dict[str, list[float]],
+        *,
+        x_values: list[float] | None = None,
+        baseline: float | None = None,
+        empty_message: str | None = None,
+    ) -> None:
+        self.series = {
+            name: [float(value) for value in values]
+            for name, values in series.items()
+            if values
+        }
+        self.values = next(iter(self.series.values()), [])
+        maximum_length = max((len(values) for values in self.series.values()), default=0)
+        self.x_values = list(x_values or range(1, maximum_length + 1))
         self.baseline = baseline if baseline is None or math.isfinite(baseline) else None
+        if empty_message is not None:
+            self.empty_message = empty_message
         self.update()
 
     def paintEvent(self, _event) -> None:
@@ -230,23 +287,53 @@ class SeriesChart(QWidget):
         background = QColor('#0F192A' if dark else '#F8FAFD')
         grid = QColor('#2C3E59' if dark else '#DCE4EF')
         muted = QColor('#9BAAC0' if dark else '#697386')
-        accent = QColor('#73A2FF' if dark else '#356DF3')
         painter.fillRect(self.rect(), background)
-        area = QRectF(38, 14, max(10, self.width() - 54), max(10, self.height() - 42))
+        area = QRectF(64, 32, max(10, self.width() - 82), max(10, self.height() - 72))
+        self._plot_area = area
+        finite_values = [
+            value
+            for values in self.series.values()
+            for value in values
+            if math.isfinite(value)
+        ]
+        if self.baseline is not None:
+            finite_values.append(self.baseline)
+        if not finite_values:
+            painter.setPen(muted)
+            painter.drawText(area, Qt.AlignmentFlag.AlignCenter, self.empty_message)
+            return
+        minimum = min(finite_values)
+        maximum = max(finite_values)
+        if minimum >= 0.0 and maximum <= 1.0:
+            minimum, maximum = 0.0, 1.0
+        else:
+            padding = max((maximum - minimum) * 0.08, abs(maximum) * 0.03, 1e-6)
+            minimum = max(0.0, minimum - padding) if minimum >= 0 else minimum - padding
+            maximum += padding
+        span = max(1e-9, maximum - minimum)
+
         painter.setPen(QPen(grid, 1))
         for step in range(5):
             y = area.top() + area.height() * step / 4
             painter.drawLine(QPointF(area.left(), y), QPointF(area.right(), y))
-        if not self.values:
             painter.setPen(muted)
-            painter.drawText(area, Qt.AlignmentFlag.AlignCenter, 'Нет metrics.csv / Live-метрик')
-            return
-        minimum = min([0.0, *self.values, *([self.baseline] if self.baseline is not None else [])])
-        maximum = max([1.0, *self.values, *([self.baseline] if self.baseline is not None else [])])
-        span = max(1e-9, maximum - minimum)
+            value = maximum - span * step / 4
+            painter.drawText(QRectF(2, y - 9, 56, 18), Qt.AlignmentFlag.AlignRight, f'{value:.4g}')
 
-        def point(index: int, value: float) -> QPointF:
-            x = area.left() + area.width() * index / max(1, len(self.values) - 1)
+        point_count = max((len(values) for values in self.series.values()), default=0)
+        tick_count = min(6, point_count)
+        if tick_count:
+            for tick in range(tick_count):
+                index = round(tick * (point_count - 1) / max(1, tick_count - 1))
+                x = area.left() + area.width() * index / max(1, point_count - 1)
+                painter.setPen(QPen(grid, 1))
+                painter.drawLine(QPointF(x, area.top()), QPointF(x, area.bottom()))
+                painter.setPen(muted)
+                label = self.x_values[index] if index < len(self.x_values) else index + 1
+                painter.drawText(QRectF(x - 26, area.bottom() + 7, 52, 18), Qt.AlignmentFlag.AlignCenter, f'{label:g}')
+
+        def point(index: int, value: float, length: int) -> QPointF:
+            x = area.left() + area.width() * index / max(1, length - 1)
             y = area.bottom() - area.height() * (value - minimum) / span
             return QPointF(x, y)
 
@@ -254,14 +341,47 @@ class SeriesChart(QWidget):
             y = area.bottom() - area.height() * (self.baseline - minimum) / span
             painter.setPen(QPen(QColor('#D08B00'), 1, Qt.PenStyle.DashLine))
             painter.drawLine(QPointF(area.left(), y), QPointF(area.right(), y))
-        path = QPainterPath(point(0, self.values[0]))
-        for index, value in enumerate(self.values[1:], 1):
-            path.lineTo(point(index, value))
-        painter.setPen(QPen(accent, 2.2))
-        painter.drawPath(path)
-        painter.setBrush(accent)
-        for index, value in enumerate(self.values):
-            painter.drawEllipse(point(index, value), 3, 3)
+        legend_x = area.left()
+        for series_index, (name, values) in enumerate(self.series.items()):
+            color = QColor(self.COLORS[series_index % len(self.COLORS)])
+            painter.setPen(QPen(color, 2.4))
+            path: QPainterPath | None = None
+            for index, value in enumerate(values):
+                if not math.isfinite(value):
+                    path = None
+                    continue
+                current = point(index, value, len(values))
+                if path is None:
+                    path = QPainterPath(current)
+                else:
+                    path.lineTo(current)
+                painter.setBrush(color)
+                painter.drawEllipse(current, 3.2, 3.2)
+            if path is not None:
+                painter.setBrush(Qt.BrushStyle.NoBrush)
+                painter.drawPath(path)
+            painter.setPen(QPen(color, 3))
+            painter.drawLine(QPointF(legend_x, 15), QPointF(legend_x + 18, 15))
+            painter.setPen(muted)
+            painter.drawText(QRectF(legend_x + 23, 5, 120, 20), name)
+            legend_x += 145
+
+    def mouseMoveEvent(self, event) -> None:
+        if not self.series or not self._plot_area.contains(event.position()):
+            self.setToolTip('')
+            return super().mouseMoveEvent(event)
+        length = max((len(values) for values in self.series.values()), default=0)
+        if length < 1:
+            return super().mouseMoveEvent(event)
+        fraction = (event.position().x() - self._plot_area.left()) / max(1.0, self._plot_area.width())
+        index = max(0, min(length - 1, round(fraction * max(1, length - 1))))
+        x = self.x_values[index] if index < len(self.x_values) else index + 1
+        lines = [f'Эпоха: {x:g}']
+        for name, values in self.series.items():
+            if index < len(values) and math.isfinite(values[index]):
+                lines.append(f'{name}: {values[index]:.6g}')
+        self.setToolTip('\n'.join(lines))
+        super().mouseMoveEvent(event)
 
 
 class AdvancedRunsPage(StudioPage):
@@ -304,8 +424,41 @@ class AdvancedRunsPage(StudioPage):
         self.summary.setWordWrap(True)
         center_layout.addWidget(self.heading)
         center_layout.addWidget(self.summary)
+        chart_header = QHBoxLayout()
+        chart_header.addWidget(title_label('Динамика по эпохам', 'sectionLabel'))
+        chart_header.addStretch(1)
+        self.chart_selector = QComboBox()
+        self.chart_selector.addItems(('Функция потерь', 'IoU', 'F1'))
+        self.chart_selector.currentTextChanged.connect(self.update_chart)
+        chart_header.addWidget(self.chart_selector)
+        center_layout.addLayout(chart_header)
         self.chart = SeriesChart()
         center_layout.addWidget(self.chart)
+        self.metrics_table = QTableWidget(2, 5)
+        self.metrics_table.setHorizontalHeaderLabels(
+            ('Выборка', 'IoU', 'F1', 'Precision', 'Recall')
+        )
+        self.metrics_table.verticalHeader().setVisible(False)
+        self.metrics_table.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
+        self.metrics_table.horizontalHeader().setSectionResizeMode(
+            QHeaderView.ResizeMode.Stretch
+        )
+        self.metrics_table.setMaximumHeight(105)
+        center_layout.addWidget(self.metrics_table)
+        confusion_row = QHBoxLayout()
+        train_box, train_layout = panel()
+        train_layout.setContentsMargins(10, 8, 10, 8)
+        train_layout.addWidget(title_label('Матрица ошибок · обучение', 'sectionLabel'))
+        self.train_confusion = self._confusion_table()
+        train_layout.addWidget(self.train_confusion)
+        val_box, val_layout = panel()
+        val_layout.setContentsMargins(10, 8, 10, 8)
+        val_layout.addWidget(title_label('Матрица ошибок · валидация', 'sectionLabel'))
+        self.val_confusion = self._confusion_table()
+        val_layout.addWidget(self.val_confusion)
+        confusion_row.addWidget(train_box, 1)
+        confusion_row.addWidget(val_box, 1)
+        center_layout.addLayout(confusion_row)
         self.table = QTableWidget()
         self.table.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
         self.table.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
@@ -355,7 +508,19 @@ class AdvancedRunsPage(StudioPage):
             right_layout.addWidget(button)
         content.addWidget(right)
         self.root.addLayout(content, 1)
+        self._displayed_run: RunInfo | None = None
         self.refresh()
+
+    @staticmethod
+    def _confusion_table() -> QTableWidget:
+        table = QTableWidget(2, 2)
+        table.setHorizontalHeaderLabels(('Пред. фон', 'Пред. цель'))
+        table.setVerticalHeaderLabels(('Ист. фон', 'Ист. цель'))
+        table.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
+        table.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Stretch)
+        table.verticalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Stretch)
+        table.setMaximumHeight(105)
+        return table
 
     def selected_runs(self) -> list[RunInfo]:
         return [
@@ -398,12 +563,14 @@ class AdvancedRunsPage(StudioPage):
             button.setEnabled(enabled)
         self.final_button.setEnabled(enabled and bool(_best_params(runs[0])) if runs else False)
         if not runs:
+            self._displayed_run = None
             self.heading.setText('Прогоны не найдены')
             self.summary.setText('Каталог runs/ пуст или ещё не создан.')
             self.table.setRowCount(0)
             self.chart.set_values([])
             self.params.clear()
             self.note.clear()
+            self._clear_run_details()
             return
         if len(runs) > 1:
             self.show_comparison(runs)
@@ -411,8 +578,11 @@ class AdvancedRunsPage(StudioPage):
         self.show_run(runs[0])
 
     def show_run(self, run: RunInfo) -> None:
+        self._displayed_run = run
+        self.chart_selector.setEnabled(True)
         self.heading.setText(run.name)
         f1 = f'{run.best_f1:.4f}' if run.best_f1 is not None else '—'
+        iou = f'{run.best_iou:.4f}' if run.best_iou is not None else '—'
         baseline = f'{run.baseline_f1:.4f}' if run.baseline_f1 is not None else '—'
         gap_value = (
             run.best_f1 - run.baseline_f1
@@ -424,17 +594,17 @@ class AdvancedRunsPage(StudioPage):
         recall = _number(run.best, 'recall')
         self.summary.setText(
             f'Класс: {run.target or "—"} · Признаки: {run.features or "—"} · '
-            f'F1: {f1} · Precision: {precision:.4f} · Recall: {recall:.4f} · '
+            f'IoU: {iou} · F1: {f1} · Precision: {precision:.4f} · Recall: {recall:.4f} · '
             f'Baseline: {baseline} · Отрыв: {gap}'
             if precision is not None and recall is not None
             else (
                 f'Класс: {run.target or "—"} · Признаки: {run.features or "—"} · '
-                f'F1: {f1} · Baseline: {baseline} · Отрыв: {gap}'
+                f'IoU: {iou} · F1: {f1} · Baseline: {baseline} · Отрыв: {gap}'
             )
         )
         columns = [
             key
-            for key in ('number', 'state', 'f1', 'precision', 'recall', 'seconds')
+            for key in ('number', 'state', 'iou', 'f1', 'precision', 'recall', 'seconds')
             if any(key in row for row in run.trials)
         ]
         self.table.setColumnCount(len(columns))
@@ -443,16 +613,19 @@ class AdvancedRunsPage(StudioPage):
         for row_index, values in enumerate(sorted(run.trials, key=_trial_score, reverse=True)):
             for column, key in enumerate(columns):
                 self.table.setItem(row_index, column, QTableWidgetItem(values.get(key, '')))
-        self.chart.set_values(_metric_series(_metrics_path(run)), run.baseline_f1)
+        self._populate_run_metrics(run)
+        self.update_chart()
         params = _best_params(run)
         self.params.setPlainText(json.dumps(params, ensure_ascii=False, indent=2) if params else 'Нет params в best.json')
         studio = _read_json(run.path / 'studio.json')
         self.note.setPlainText(str(studio.get('note', '')))
 
     def show_comparison(self, runs: list[RunInfo]) -> None:
+        self._displayed_run = None
+        self.chart_selector.setEnabled(False)
         self.heading.setText(f'Сравнение · {len(runs)}')
         self.summary.setText('Все значения прочитаны из артефактов выбранных прогонов.')
-        rows = ('target', 'features', 'best_f1', 'precision', 'recall', 'baseline', 'gap')
+        rows = ('target', 'features', 'best_iou', 'best_f1', 'precision', 'recall', 'baseline', 'gap')
         self.table.setColumnCount(len(runs) + 1)
         self.table.setHorizontalHeaderLabels(['Поле', *(run.name for run in runs)])
         self.table.setRowCount(len(rows))
@@ -464,6 +637,7 @@ class AdvancedRunsPage(StudioPage):
                     'target': run.target,
                     'features': run.features,
                     'best_f1': run.best_f1,
+                    'best_iou': run.best_iou,
                     'precision': _number(run.best, 'precision'),
                     'recall': _number(run.best, 'recall'),
                     'baseline': run.baseline_f1,
@@ -478,7 +652,7 @@ class AdvancedRunsPage(StudioPage):
                     row_values.append(value)
                 text = f'{value:.4f}' if isinstance(value, float) else str(value or '—')
                 self.table.setItem(row_index, column, QTableWidgetItem(text))
-            if key in {'best_f1', 'precision', 'recall', 'gap'} and row_values:
+            if key in {'best_iou', 'best_f1', 'precision', 'recall', 'gap'} and row_values:
                 best = max(row_values)
                 for column in range(1, len(runs) + 1):
                     item = self.table.item(row_index, column)
@@ -503,11 +677,85 @@ class AdvancedRunsPage(StudioPage):
                         font.setBold(True)
                         item.setFont(font)
         self.chart.set_values([run.best_f1 for run in runs if run.best_f1 is not None])
+        self._clear_run_details()
         self.params.setPlainText('\n\n'.join(
             f'{run.name}:\n{json.dumps(_best_params(run), ensure_ascii=False, indent=2)}'
             for run in runs
         ))
         self.note.clear()
+
+    def update_chart(self, *_args) -> None:
+        run = self._displayed_run
+        if run is None:
+            return
+        rows = _metric_rows(_metrics_path(run))
+        epochs: list[float] = []
+        for index, row in enumerate(rows, 1):
+            try:
+                epochs.append(float(row.get('epoch', index)))
+            except (TypeError, ValueError):
+                epochs.append(float(index))
+
+        def values(key: str) -> list[float]:
+            result: list[float] = []
+            for row in rows:
+                try:
+                    result.append(float(row.get(key, 'nan')))
+                except (TypeError, ValueError):
+                    result.append(float('nan'))
+            return result
+
+        selected = self.chart_selector.currentText()
+        if selected == 'Функция потерь':
+            series = {'Обучение': values('train_loss'), 'Валидация': values('val_loss')}
+            message = 'В старом прогоне значения loss не записывались. Запустите обучение новой версии.'
+            baseline = None
+        elif selected == 'IoU':
+            series = {'Обучение': values('train_iou'), 'Валидация': values('iou')}
+            message = 'В metrics.csv нет значений IoU.'
+            baseline = None
+        else:
+            series = {'Обучение': values('train_f1'), 'Валидация': values('f1')}
+            message = 'В metrics.csv нет значений F1.'
+            baseline = run.baseline_f1
+        self.chart.set_series(
+            series,
+            x_values=epochs,
+            baseline=baseline,
+            empty_message=message,
+        )
+
+    def _populate_run_metrics(self, run: RunInfo) -> None:
+        train = run.best.get('train') if isinstance(run.best.get('train'), dict) else {}
+        val = run.best.get('val') if isinstance(run.best.get('val'), dict) else {}
+        if not val:
+            val = run.best
+        for row, (name, metrics) in enumerate((('Обучение', train), ('Валидация', val))):
+            self.metrics_table.setItem(row, 0, QTableWidgetItem(name))
+            for column, key in enumerate(('iou', 'f1', 'precision', 'recall'), 1):
+                value = metrics.get(key) if isinstance(metrics, dict) else None
+                text = f'{float(value):.4f}' if isinstance(value, (int, float)) else '—'
+                self.metrics_table.setItem(row, column, QTableWidgetItem(text))
+        self._set_confusion(self.train_confusion, train.get('confusion') if isinstance(train, dict) else None)
+        self._set_confusion(self.val_confusion, val.get('confusion') if isinstance(val, dict) else None)
+
+    @staticmethod
+    def _set_confusion(table: QTableWidget, matrix: Any) -> None:
+        for row in range(2):
+            for column in range(2):
+                try:
+                    value = int(matrix[row][column])
+                    text = f'{value:,}'.replace(',', ' ')
+                except (IndexError, TypeError, ValueError):
+                    text = '—'
+                table.setItem(row, column, QTableWidgetItem(text))
+
+    def _clear_run_details(self) -> None:
+        for row in range(2):
+            for column in range(5):
+                self.metrics_table.setItem(row, column, QTableWidgetItem('—'))
+        self._set_confusion(self.train_confusion, None)
+        self._set_confusion(self.val_confusion, None)
 
     def save_note(self) -> None:
         run = self.current_run()
@@ -976,6 +1224,10 @@ class AdvancedTestingPage(StudioPage):
         details, details_layout = panel()
         details.setMinimumWidth(350)
         details_layout.addWidget(title_label('Метрики'))
+        self.overall_metrics = QLabel('Итоговые метрики появятся после тестирования.')
+        self.overall_metrics.setObjectName('infoNote')
+        self.overall_metrics.setWordWrap(True)
+        details_layout.addWidget(self.overall_metrics)
         self.result_scene = QComboBox()
         self.result_scene.currentIndexChanged.connect(self.select_result_scene)
         details_layout.addWidget(self.result_scene)
@@ -997,13 +1249,17 @@ class AdvancedTestingPage(StudioPage):
         details_layout.addWidget(self.confusion)
         self.scene_table = QTableWidget()
         self.scene_table.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
+        self.scene_table.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
+        self.scene_table.cellClicked.connect(
+            lambda row, _column: self.result_scene.setCurrentIndex(row)
+        )
         details_layout.addWidget(self.scene_table, 1)
         body.addWidget(details, 1)
 
         preview, preview_layout = panel()
         preview.setMinimumWidth(430)
+        preview_layout.addWidget(title_label('3D-результат'))
         header = QHBoxLayout()
-        header.addWidget(title_label('3D-результат'))
         header.addStretch(1)
         self.mode_buttons: dict[str, QPushButton] = {}
         for key, text in (('classes', 'Классы'), ('prediction', 'Предсказание'), ('errors', 'Ошибки')):
@@ -1018,8 +1274,9 @@ class AdvancedTestingPage(StudioPage):
         self.canvas = PointCloudCanvas()
         self.canvas.setMinimumSize(380, 320)
         preview_layout.addWidget(self.canvas, 1)
-        self.legend = QLabel('Выберите результ и сцену.')
+        self.legend = QLabel('Выберите результат и сцену.')
         self.legend.setObjectName('legendText')
+        self.legend.setTextFormat(Qt.TextFormat.RichText)
         self.legend.setWordWrap(True)
         preview_layout.addWidget(self.legend)
         body.addWidget(preview, 1)
@@ -1046,7 +1303,11 @@ class AdvancedTestingPage(StudioPage):
         if tests.is_dir():
             self.result_paths = sorted(tests.rglob('scenes__*.json'), reverse=True)
         for path in self.result_paths:
-            self.result_list.addItem(str(path.relative_to(tests)))
+            item = QListWidgetItem(
+                f'{path.parent.name} · {path.stem.removeprefix("scenes__")}'
+            )
+            item.setToolTip(str(path.relative_to(tests)))
+            self.result_list.addItem(item)
         self.update_scene_limit()
         if self.result_paths:
             self.result_list.setCurrentRow(0)
@@ -1124,32 +1385,74 @@ class AdvancedTestingPage(StudioPage):
             if isinstance(scene, dict):
                 self.result_scene.addItem(str(scene.get('scene', 'Сцена')), scene)
         self.result_scene.blockSignals(False)
-        columns = ['scene', 'f1', 'precision', 'recall', 'baseline_f1', 'not_covered']
+        columns = ['scene', 'iou', 'f1', 'precision', 'recall', 'errors', 'not_covered']
+        headers = ['Сцена', 'IoU', 'F1', 'Precision', 'Recall', 'FP + FN', 'Не покрыто']
         self.scene_table.setColumnCount(len(columns))
-        self.scene_table.setHorizontalHeaderLabels(columns)
+        self.scene_table.setHorizontalHeaderLabels(headers)
         self.scene_table.setRowCount(len(scenes))
         for row_index, scene in enumerate(scenes):
             if not isinstance(scene, dict):
                 continue
             for column, key in enumerate(columns):
-                cell_value = scene.get(key, '')
+                if key == 'errors':
+                    matrix = scene.get('confusion')
+                    try:
+                        cell_value = int(matrix[0][1]) + int(matrix[1][0])
+                    except (IndexError, TypeError, ValueError):
+                        cell_value = ''
+                else:
+                    cell_value = scene.get(key, '')
                 text = (
                     f'{cell_value:.4f}'
                     if isinstance(cell_value, float)
                     else str(cell_value)
                 )
-                self.scene_table.setItem(row_index, column, QTableWidgetItem(text))
+                item = QTableWidgetItem(text)
+                if key == 'iou' and isinstance(cell_value, (int, float)):
+                    color = '#DDF7E8' if cell_value >= 0.8 else '#FFF2CC' if cell_value >= 0.6 else '#FFE1E5'
+                    item.setBackground(QBrush(QColor(color)))
+                self.scene_table.setItem(row_index, column, item)
+        self.scene_table.horizontalHeader().setSectionResizeMode(
+            0, QHeaderView.ResizeMode.Stretch
+        )
+        for column in range(1, len(columns)):
+            self.scene_table.horizontalHeader().setSectionResizeMode(
+                column, QHeaderView.ResizeMode.ResizeToContents
+            )
         if scenes:
             best = max((scene for scene in scenes if isinstance(scene, dict)), key=lambda item: float(item.get('f1', -1)), default={})
-            self.metrics.setText(
+            aggregate = self._aggregate_metrics(scenes)
+            self.overall_metrics.setText(
                 f'Готово: {result_data.get("done", len(scenes))}/'
                 f'{result_data.get("total", len(scenes))} · '
-                f'Лучшая сцена: {best.get("scene", "—")} · F1 {float(best.get("f1", 0)):.4f}'
+                f'Все сцены: IoU {aggregate["iou"]:.4f} · F1 {aggregate["f1"]:.4f} · '
+                f'Precision {aggregate["precision"]:.4f} · Recall {aggregate["recall"]:.4f} · '
+                f'Лучшая сцена: {best.get("scene", "—")}'
             )
             self.result_scene.setCurrentIndex(0)
             self.select_result_scene(0)
         else:
+            self.overall_metrics.setText('Итоговых метрик пока нет.')
             self.metrics.setText('Файл результата пока не содержит готовых сцен.')
+
+    @staticmethod
+    def _aggregate_metrics(scenes: list[Any]) -> dict[str, float]:
+        tn = fp = fn = tp = 0
+        for scene in scenes:
+            matrix = scene.get('confusion') if isinstance(scene, dict) else None
+            try:
+                tn += int(matrix[0][0])
+                fp += int(matrix[0][1])
+                fn += int(matrix[1][0])
+                tp += int(matrix[1][1])
+            except (IndexError, TypeError, ValueError):
+                continue
+        return {
+            'iou': tp / max(1, tp + fp + fn),
+            'f1': 2 * tp / max(1, 2 * tp + fp + fn),
+            'precision': tp / max(1, tp + fp),
+            'recall': tp / max(1, tp + fn),
+        }
 
     def select_result_scene(self, index: int) -> None:
         scene = self.result_scene.itemData(index)
@@ -1163,9 +1466,22 @@ class AdvancedTestingPage(StudioPage):
                         value = int(confusion[row][column])
                     except (IndexError, TypeError, ValueError):
                         value = 0
-                    self.confusion.setItem(row, column, QTableWidgetItem(f'{value:,}'.replace(',', ' ')))
+                    item = QTableWidgetItem(f'{value:,}'.replace(',', ' '))
+                    color = (
+                        ERROR_COLORS[1]
+                        if (row, column) == (0, 0)
+                        else ERROR_COLORS[6]
+                        if (row, column) == (0, 1)
+                        else ERROR_COLORS[9]
+                        if (row, column) == (1, 0)
+                        else ERROR_COLORS[3]
+                    )
+                    item.setBackground(QBrush(QColor(color)))
+                    item.setForeground(QBrush(QColor('#FFFFFF')))
+                    self.confusion.setItem(row, column, item)
         self.metrics.setText(
-            f'{scene.get("scene", "—")} · F1 {float(scene.get("f1", 0)):.4f} · '
+            f'{scene.get("scene", "—")} · IoU {float(scene.get("iou", 0)):.4f} · '
+            f'F1 {float(scene.get("f1", 0)):.4f} · '
             f'Precision {float(scene.get("precision", 0)):.4f} · '
             f'Recall {float(scene.get("recall", 0)):.4f} · '
             f'Baseline {float(scene.get("baseline_f1", 0)):.4f}'
@@ -1206,10 +1522,18 @@ class AdvancedTestingPage(StudioPage):
         if self._cloud is None:
             return
         classes = self._cloud.classes
-        legend = 'Исходные классы'
+        legend = _legend_html((('Исходные классы', '#356DF3'),))
+        palette = TEST_CLASS_COLORS
         if mode == 'prediction' and self._prediction is not None:
             classes = np.where(self._prediction == 255, 7, np.where(self._prediction == 1, 3, 1)).astype(np.int32)
-            legend = 'Серый: фон · Зелёный: цель · Фиолетовый: не покрыто'
+            palette = ERROR_COLORS
+            legend = _legend_html(
+                (
+                    ('Фон', ERROR_COLORS[1]),
+                    ('Цель', ERROR_COLORS[3]),
+                    ('Не покрыто', ERROR_COLORS[7]),
+                )
+            )
         elif mode == 'errors' and self._prediction is not None:
             targets = TARGET_CLASS_IDS.get(self._target, ())
             truth = np.isin(self._cloud.classes, targets)
@@ -1219,7 +1543,16 @@ class AdvancedTestingPage(StudioPage):
             classes[(pred == 1) & ~truth] = 6  # FP, красный
             classes[(pred == 0) & truth] = 9  # FN, светло-голубой
             classes[pred == 255] = 7  # не покрыто
-            legend = 'TP: зелёный · FP: красный · FN: голубой · TN: серый · не покрыто: фиолетовый'
+            palette = ERROR_COLORS
+            legend = _legend_html(
+                (
+                    ('TP · верно найдена цель', ERROR_COLORS[3]),
+                    ('FP · ложная цель', ERROR_COLORS[6]),
+                    ('FN · пропущенная цель', ERROR_COLORS[9]),
+                    ('TN · верный фон', ERROR_COLORS[1]),
+                    ('Не покрыто', ERROR_COLORS[7]),
+                )
+            )
         displayed = PointCloudData(
             path=self._cloud.path,
             points=self._cloud.points,
@@ -1232,6 +1565,13 @@ class AdvancedTestingPage(StudioPage):
             rgb=self._cloud.rgb,
         )
         self.canvas.set_cloud(displayed)
+        self.canvas.set_point_size(2.4)
+        for class_id in displayed.unique_classes:
+            normalized = int(class_id)
+            self.canvas.set_class_size(normalized, 0.9)
+            color = palette.get(normalized)
+            if color is not None:
+                self.canvas.set_class_color(normalized, QColor(color))
         self.legend.setText(legend)
 
 
@@ -1275,6 +1615,10 @@ class AdvancedArtifactsPage(StudioPage):
         right, right_layout = panel()
         self.heading = title_label('Предпросмотр')
         right_layout.addWidget(self.heading)
+        self.artifact_meta = QLabel('')
+        self.artifact_meta.setObjectName('mutedText')
+        self.artifact_meta.setWordWrap(True)
+        right_layout.addWidget(self.artifact_meta)
         self.preview_stack = QStackedWidget()
         self.markdown = QTextBrowser()
         self.markdown.setObjectName('artifactMarkdown')
@@ -1300,8 +1644,11 @@ class AdvancedArtifactsPage(StudioPage):
     def populate(self) -> None:
         self.list.clear()
         for artifact in self.visible():
-            prefix = f'{artifact.run_name} · ' if artifact.run_name else ''
-            self.list.addItem(f'{prefix}{artifact.path.name}')
+            item = QListWidgetItem(artifact.path.name)
+            item.setToolTip(
+                f'{artifact.category} · {artifact.run_name or "Без прогона"}\n{artifact.path}'
+            )
+            self.list.addItem(item)
         if self.list.count():
             self.list.setCurrentRow(0)
         else:
@@ -1319,6 +1666,9 @@ class AdvancedArtifactsPage(StudioPage):
         if artifact is None:
             return
         self.heading.setText(artifact.path.name)
+        self.artifact_meta.setText(
+            f'{artifact.category} · Прогон: {artifact.run_name or "—"} · {artifact.path.parent}'
+        )
         self.test_button.setEnabled(artifact.category == 'Модели')
         if artifact.category == 'Документы':
             self.markdown.setMarkdown(read_text_preview(artifact.path))

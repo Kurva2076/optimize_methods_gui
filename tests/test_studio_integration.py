@@ -8,6 +8,7 @@ from PySide6.QtCore import QSettings
 from PySide6.QtWidgets import QApplication
 
 from main_window import MainWindow
+from hpo_pointnet import EPOCH_FIELDS
 from screens.studio import DatasetsPage, ScenariosPage
 from screens.studio_advanced import (
     AdvancedArtifactsPage,
@@ -70,15 +71,21 @@ def test_run_scan_uses_real_best_and_trials_artifacts(tmp_path: Path) -> None:
     assert runs[0].baseline_f1 == 0.72
 
 
-def test_datasets_workspace_highlights_second_workflow_stage() -> None:
+def test_new_training_artifacts_include_train_and_validation_loss() -> None:
+    assert 'train_loss' in EPOCH_FIELDS
+    assert 'val_loss' in EPOCH_FIELDS
+
+
+def test_datasets_workspace_uses_sidebar_without_legacy_stepper() -> None:
     app = QApplication.instance() or QApplication([])
     window = MainWindow()
 
     window.show_studio_section('datasets')
 
     assert isinstance(window.stack.currentWidget(), DatasetsPage)
-    assert window.stepper._items[1].circle.property('active') is True
-    assert window.stepper._items[0].circle.property('active') is False
+    assert not hasattr(window, 'stepper')
+    assert window.sidebar.buttons['datasets'].property('active') is True
+    assert window.sidebar.buttons['preprocessing'].property('active') is False
     window.deleteLater()
     app.processEvents()
 

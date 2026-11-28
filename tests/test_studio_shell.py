@@ -1,4 +1,5 @@
 import sys
+import time
 from pathlib import Path
 
 from PySide6.QtCore import QSettings
@@ -6,8 +7,11 @@ from PySide6.QtTest import QSignalSpy, QTest
 from PySide6.QtWidgets import QApplication
 
 import studio_widgets
+import screens.studio as studio_screen
 from resources import apply_application_style
 from studio_context import StudioContext
+from studio_environment import EnvironmentStatus
+from screens.studio import EnvironmentPage
 from studio_theme import apply_studio_theme, stylesheet_for
 from studio_widgets import StudioSidebar
 
@@ -116,3 +120,36 @@ def test_sidebar_counts_project_entities_and_shows_running_process(tmp_path: Pat
     process.process.waitForFinished(1000)
     sidebar.deleteLater()
     apply_studio_theme('light', app)
+
+
+def test_environment_page_checks_in_background(tmp_path: Path, monkeypatch) -> None:
+    app = QApplication.instance() or QApplication([])
+    context = StudioContext(settings=_settings(tmp_path))
+    root = _project(tmp_path / 'project')
+    assert context.set_project(root)
+
+    def slow_check(_root):
+        # Заметная задержка позволяет отделить реальную блокировку
+        # GUI от одноразовой инициализации шрифтов Qt на macOS.
+        time.sleep(0.6)
+        return EnvironmentStatus(None, None, None, None, None, None, None, False, 'нет среды')
+
+    monkeypatch.setattr(studio_screen, 'inspect_environment', slow_check)
+    started = time.monotonic()
+    page = EnvironmentPage(context)
+    elapsed = time.monotonic() - started
+
+    assert elapsed < 0.45
+    assert page.python_value.text() == 'Проверка…'
+    deadline = time.monotonic() + 3.0
+    while (
+        page._check_thread is not None
+        and page._check_thread.isRunning()
+        and time.monotonic() < deadline
+    ):
+        app.processEvents()
+        time.sleep(0.01)
+    app.processEvents()
+    assert page.venv_value.text() == 'Требует настройки'
+    page.deleteLater()
+    app.processEvents()

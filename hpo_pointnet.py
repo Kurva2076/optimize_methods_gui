@@ -36,10 +36,10 @@ LOG = logging.getLogger("hpo_pointnet")
 #  6: аугментации Train и F1 при пороге, подобранном по Val;
 #  7: AdamW вместо Adam, weight_decay 1e-5..1e-1).
 SEARCH_SPACE_VERSION = 7
-FIELDS = ["number", "state", "f1", "precision", "recall", "baseline_f1", "seed", "target",
+FIELDS = ["number", "state", "iou", "f1", "precision", "recall", "baseline_f1", "seed", "target",
           "features", "checkpoint", "error", "params", "seconds"]
-EPOCH_FIELDS = ["epoch", "f1", "precision", "recall", "iou", "train_f1", "train_precision",
-                "train_recall", "train_iou", "lr", "seconds"]
+EPOCH_FIELDS = ["epoch", "train_loss", "val_loss", "f1", "precision", "recall", "iou",
+                "train_f1", "train_precision", "train_recall", "train_iou", "lr", "seconds"]
 
 
 def write_best(study, output_dir, run_info):
@@ -278,6 +278,7 @@ def main(argv=None):
                 # Train-метрики — по предсказаниям самих шагов обучения (режим train, веса
                 # меняются по ходу эпохи): без второго прохода по Train.
                 train_counts = torch.zeros(4, dtype=torch.long, device=device)
+                train_loss_sum, train_point_count = 0.0, 0
                 start, n_batches = time.time(), len(train_loader)
                 for step, (feat, batch, y, keys, *point_weight) in enumerate(train_loader, 1):
                     feat, batch, y = feat.to(device), batch.to(device), y.to(device)
@@ -287,6 +288,8 @@ def main(argv=None):
                         out = forward(model, feat, batch, keys, train_cache)
                     out = out.float()  # loss в fp32: exp в focal и веса классов без потери точности
                     loss = criterion(out, y, point_weight)
+                    train_loss_sum += float(loss.detach().item()) * int(y.numel())
+                    train_point_count += int(y.numel())
                     scaler.scale(loss).backward()
                     scaler.step(optimizer)
                     scaler.update()
@@ -295,11 +298,14 @@ def main(argv=None):
                         LOG.info("trial=%s epoch=%s batch %s/%s loss=%.4f %.0fs", trial.number,
                                  epoch + 1, step, n_batches, loss.item(), time.time() - start)
                 train_m = counts_metrics(train_counts)
-                m = evaluate(model, val_loader, device, val_cache, amp)
+                train_m['loss'] = train_loss_sum / max(1, train_point_count)
+                m = evaluate(model, val_loader, device, val_cache, amp, criterion)
                 seconds = round(time.time() - start, 1)  # обучение + валидация
                 f1 = m["f1"]
                 lr = optimizer.param_groups[0]["lr"]
-                history.append({"epoch": epoch + 1, "f1": f1, "precision": m["precision"],
+                history.append({"epoch": epoch + 1,
+                                "train_loss": train_m["loss"], "val_loss": m["loss"],
+                                "f1": f1, "precision": m["precision"],
                                 "recall": m["recall"], "iou": m["iou"],
                                 **{f"train_{k}": train_m[k] for k in ("f1", "precision", "recall", "iou")},
                                 "lr": lr, "seconds": seconds})
@@ -355,6 +361,7 @@ def main(argv=None):
         with csv_path.open("a", newline="", encoding="utf-8") as f:
             csv.DictWriter(f, fieldnames=FIELDS).writerow({
                 "number": trial.number, "state": trial.state.name, "f1": trial.value,
+                "iou": trial.user_attrs.get("iou", ""),
                 "precision": trial.user_attrs.get("precision", ""),
                 "recall": trial.user_attrs.get("recall", ""),
                 "baseline_f1": trial.user_attrs.get("baseline_f1", ""), "seed": args.seed,

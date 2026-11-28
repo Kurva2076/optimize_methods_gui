@@ -3,6 +3,7 @@ import json
 from pathlib import Path
 
 import numpy as np
+from PySide6.QtCore import QSettings
 from PySide6.QtWidgets import QApplication
 
 from screens.studio_advanced import (
@@ -17,7 +18,12 @@ from studio_context import StudioContext
 
 def _context(root: Path) -> StudioContext:
     (root / 'hpo_pointnet.py').write_text('# marker\n', encoding='utf-8')
-    context = StudioContext()
+    context = StudioContext(
+        settings=QSettings(
+            str(root / 'studio-test.ini'),
+            QSettings.Format.IniFormat,
+        )
+    )
     assert context.set_project(root)
     return context
 
@@ -32,8 +38,23 @@ def _run(root: Path, name: str, f1: float, baseline: float) -> Path:
                 'target': 'ground',
                 'features': 'xyz',
                 'f1': f1,
+                'iou': f1 - 0.05,
                 'precision': f1 - 0.01,
                 'recall': f1 + 0.01,
+                'train': {
+                    'iou': f1 - 0.08,
+                    'f1': f1 - 0.03,
+                    'precision': f1 - 0.04,
+                    'recall': f1 - 0.02,
+                    'confusion': [[80, 8], [10, 42]],
+                },
+                'val': {
+                    'iou': f1 - 0.05,
+                    'f1': f1,
+                    'precision': f1 - 0.01,
+                    'recall': f1 + 0.01,
+                    'confusion': [[70, 9], [8, 38]],
+                },
                 'baseline_f1': baseline,
                 'params': {'lr': 0.001, 'batch_size': 2},
                 'checkpoint': 'trial_0001/best.pt',
@@ -59,10 +80,19 @@ def _run(root: Path, name: str, f1: float, baseline: float) -> Path:
             }
         )
     with (trial / 'metrics.csv').open('w', encoding='utf-8', newline='') as stream:
-        writer = csv.DictWriter(stream, fieldnames=['epoch', 'f1'])
+        writer = csv.DictWriter(
+            stream,
+            fieldnames=['epoch', 'train_loss', 'val_loss', 'f1', 'train_f1', 'iou', 'train_iou'],
+        )
         writer.writeheader()
-        writer.writerow({'epoch': 1, 'f1': f1 - 0.1})
-        writer.writerow({'epoch': 2, 'f1': f1})
+        writer.writerow(
+            {'epoch': 1, 'train_loss': 0.62, 'val_loss': 0.68, 'f1': f1 - 0.1,
+             'train_f1': f1 - 0.12, 'iou': f1 - 0.15, 'train_iou': f1 - 0.17}
+        )
+        writer.writerow(
+            {'epoch': 2, 'train_loss': 0.41, 'val_loss': 0.49, 'f1': f1,
+             'train_f1': f1 - 0.03, 'iou': f1 - 0.05, 'train_iou': f1 - 0.08}
+        )
     return path
 
 
@@ -86,7 +116,10 @@ def test_advanced_runs_reads_compares_and_exports_real_artifacts(tmp_path: Path)
 
     assert page.run_list.count() == 2
     assert '0.8100' in page.summary.text()
-    assert np.allclose(page.chart.values, [0.71, 0.81])
+    assert np.allclose(page.chart.values, [0.62, 0.41])
+    assert 'IoU: 0.7600' in page.summary.text()
+    assert page.train_confusion.item(0, 0).text() == '80'
+    assert page.val_confusion.item(1, 1).text() == '38'
     params = page.export_params()
     assert params == tmp_path / 'runs' / 'ground_xyz.params.json'
     assert json.loads(params.read_text(encoding='utf-8'))['lr'] == 0.001
@@ -142,6 +175,7 @@ def test_testing_page_reads_metrics_confusion_and_prediction_cloud(
                 'scene': scene.name,
                 'path': str(scene),
                 'f1': 0.75,
+                'iou': 0.60,
                 'precision': 0.75,
                 'recall': 0.75,
                 'baseline_f1': 0.66,
@@ -158,10 +192,13 @@ def test_testing_page_reads_metrics_confusion_and_prediction_cloud(
 
     assert page.result_list.count() == 1
     assert 'F1 0.7500' in page.metrics.text()
+    assert 'IoU 0.6000' in page.metrics.text()
+    assert 'Все сцены: IoU 0.6000' in page.overall_metrics.text()
     assert page.confusion.item(1, 1).text() == '3'
     page.set_visual_mode('errors')
     assert page.canvas.cloud is not None
     assert set(page.canvas.cloud.classes.tolist()) >= {1, 3, 6, 7, 9}
+    assert page.canvas.class_colors[6].name().upper() == '#FF304F'
     page.deleteLater()
     app.processEvents()
 
@@ -172,10 +209,12 @@ def test_artifacts_page_renders_markdown_and_models(tmp_path: Path) -> None:
     run = _run(tmp_path, 'ground_xyz', 0.81, 0.50)
     (run / 'report.md').write_text('# Отчёт\n\n- F1: 0.81\n', encoding='utf-8')
     (run / 'train.log').write_text('epoch 1\n', encoding='utf-8')
+    (run / 'best_model.pt').write_bytes(b'final model')
 
     page = AdvancedArtifactsPage(context)
 
     assert page.list.count() == 3
+    assert all('ground_xyz ·' not in page.list.item(index).text() for index in range(page.list.count()))
     document_row = next(
         index
         for index, artifact in enumerate(page.visible())

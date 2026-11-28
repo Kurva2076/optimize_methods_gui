@@ -24,6 +24,7 @@ from studio_theme import apply_studio_theme
 
 NAVIGATION = (
     ('projects', 'Проекты', 'projects.svg'),
+    ('preprocessing', 'Предобработка', 'datasets.svg'),
     ('datasets', 'Датасеты', 'datasets.svg'),
     ('runs', 'Запуски', 'runs.svg'),
     ('live', 'Live', 'live.svg'),

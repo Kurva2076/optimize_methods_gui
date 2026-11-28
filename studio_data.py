@@ -49,6 +49,7 @@ class RunInfo:
     target: str = ''
     features: str = ''
     best_f1: float | None = None
+    best_iou: float | None = None
     baseline_f1: float | None = None
     status: str = 'Не запускался'
     trials: tuple[dict[str, str], ...] = field(default_factory=tuple)
@@ -243,6 +244,7 @@ def scan_runs(root: str | Path, runs_directory: str | Path | None = None) -> lis
         target = _first_text(best, ('target',))
         features = _first_text(best, ('features', 'feature_set'))
         best_f1 = _first_number(best, ('f1', 'best_f1', 'value'))
+        best_iou = _first_number(best, ('iou', 'best_iou'))
         baseline = _first_number(best, ('baseline_f1', 'baseline'))
 
         states = [row.get('state', '').upper() for row in trials]
@@ -264,6 +266,7 @@ def scan_runs(root: str | Path, runs_directory: str | Path | None = None) -> lis
                 target=target,
                 features=features,
                 best_f1=best_f1,
+                best_iou=best_iou,
                 baseline_f1=baseline,
                 status=status,
                 trials=trials,
@@ -281,14 +284,37 @@ def scan_artifacts(root: str | Path) -> list[ArtifactInfo]:
         for path in sorted(runs_root.rglob('*.md')):
             artifacts.append(ArtifactInfo(path, 'Документы', _run_name(path, runs_root)))
         for path in sorted(runs_root.rglob('*.pt')):
-            artifacts.append(ArtifactInfo(path, 'Модели', _run_name(path, runs_root)))
+            # best_model.pt в корне прогона является копией лучшего trial и
+            # удобнее для пользователя. Не показываем рядом все одноимённые
+            # промежуточные best.pt, если итоговая модель уже существует.
+            run_name = _run_name(path, runs_root)
+            run_root = runs_root / run_name if run_name else None
+            if (
+                path.name == 'best.pt'
+                and run_root is not None
+                and (run_root / 'best_model.pt').is_file()
+            ):
+                continue
+            artifacts.append(ArtifactInfo(path, 'Модели', run_name))
         for path in sorted(runs_root.rglob('*.log')):
             artifacts.append(ArtifactInfo(path, 'Логи', _run_name(path, runs_root)))
     models_root = project / 'models'
     if models_root.is_dir():
         for path in sorted(models_root.glob('*.pt')):
             artifacts.append(ArtifactInfo(path, 'Модели', 'Импортированные'))
-    return artifacts
+    unique: list[ArtifactInfo] = []
+    seen: set[tuple[str, str, str]] = set()
+    for artifact in artifacts:
+        key = (
+            artifact.category.casefold(),
+            artifact.run_name.casefold(),
+            artifact.path.name.casefold(),
+        )
+        if key in seen:
+            continue
+        seen.add(key)
+        unique.append(artifact)
+    return unique
 
 
 def _run_name(path: Path, runs_root: Path) -> str:

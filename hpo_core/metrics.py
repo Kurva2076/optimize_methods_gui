@@ -50,17 +50,27 @@ def threshold_metrics(hist):
     return dict(m, threshold=k / THRESHOLD_BINS, f1_default=float(f1[half]))
 
 
-def evaluate(model, loader, device, cache=None, amp=False):
+def evaluate(model, loader, device, cache=None, amp=False, criterion=None):
     import torch
     model.eval()
     hist = torch.zeros(2 * THRESHOLD_BINS, dtype=torch.long, device=device)
+    loss_sum = 0.0
+    point_count = 0
     with torch.no_grad():
         for feat, batch, y, keys in loader:
             feat, batch = feat.to(device), batch.to(device)
+            target = y.to(device)
             with torch.autocast(device.type, dtype=torch.float16, enabled=amp):
                 out = forward(model, feat, batch, keys, cache)
-            p = torch.softmax(out.float(), dim=1)[:, 1]
+            logits = out.float()
+            if criterion is not None:
+                loss_sum += float(criterion(logits, target).item()) * int(target.numel())
+                point_count += int(target.numel())
+            p = torch.softmax(logits, dim=1)[:, 1]
             b = (p * THRESHOLD_BINS).long().clamp_(max=THRESHOLD_BINS - 1)
-            hist += torch.bincount(y.to(device).long() * THRESHOLD_BINS + b,
+            hist += torch.bincount(target.long() * THRESHOLD_BINS + b,
                                    minlength=2 * THRESHOLD_BINS)
-    return threshold_metrics(hist.cpu().numpy())
+    result = threshold_metrics(hist.cpu().numpy())
+    if criterion is not None:
+        result['loss'] = loss_sum / max(1, point_count)
+    return result

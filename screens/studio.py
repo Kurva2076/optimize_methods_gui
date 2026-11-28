@@ -52,7 +52,7 @@ from studio_data import (
     scan_runs,
 )
 from studio_dialogs import LaunchDialog, TestModelDialog
-from studio_environment import EnvironmentInstaller, inspect_environment
+from studio_environment import EnvironmentInstaller, EnvironmentStatus, inspect_environment
 from studio_processes import ManagedProcess
 from studio_widgets import ProjectRequired, open_in_file_manager
 
@@ -125,6 +125,20 @@ class StudioPage(QWidget):
 
     def refresh(self) -> None:
         raise NotImplementedError
+
+
+class EnvironmentCheckWorker(QObject):
+    """Проверяет тяжёлое ML-окружение вне GUI-потока."""
+
+    finished = Signal(object, object)
+
+    def __init__(self, root: Path) -> None:
+        super().__init__()
+        self.root = root
+
+    @Slot()
+    def run(self) -> None:
+        self.finished.emit(self.root, inspect_environment(self.root))
 
 
 class MiniDatasetWorker(QObject):
@@ -1675,6 +1689,12 @@ class EnvironmentPage(StudioPage):
         super().__init__(context, parent)
         self.installer = EnvironmentInstaller(context, self)
         self.installer.finished.connect(self.installation_finished)
+        self._check_thread: QThread | None = None
+        self._check_worker: EnvironmentCheckWorker | None = None
+        self._check_root: Path | None = None
+        self._check_queued = False
+        self._last_status: EnvironmentStatus | None = None
+        self._last_status_root: Path | None = None
 
         refresh = QPushButton('Проверить снова')
         refresh.setObjectName('secondaryButton')
@@ -1759,7 +1779,41 @@ class EnvironmentPage(StudioPage):
             self.install_button.setEnabled(False)
             return
 
-        status = inspect_environment(root)
+        if self._check_thread is not None and self._check_thread.isRunning():
+            self._check_queued = self._check_root != root
+            return
+        for value in values:
+            value.setText('Проверка…')
+        self.install_button.setEnabled(False)
+        self.commands.setPlainText(
+            'Проверяем Python 3.11, PyTorch, CUDA и зависимости в фоновом режиме…'
+        )
+        thread = QThread(self)
+        worker = EnvironmentCheckWorker(root)
+        worker.moveToThread(thread)
+        thread.started.connect(worker.run)
+        worker.finished.connect(self._environment_checked)
+        worker.finished.connect(thread.quit)
+        worker.finished.connect(worker.deleteLater)
+        thread.finished.connect(
+            lambda current=thread: self._environment_thread_finished(current)
+        )
+        thread.finished.connect(thread.deleteLater)
+        self._check_thread = thread
+        self._check_worker = worker
+        self._check_root = root
+        thread.start()
+
+    @Slot(object, object)
+    def _environment_checked(
+        self,
+        root: Path,
+        status: EnvironmentStatus,
+    ) -> None:
+        if self.context.project_root != root:
+            return
+        self._last_status = status
+        self._last_status_root = root
         self.venv_value.setText('Готово' if status.ready else 'Требует настройки')
         self.python_value.setText(status.python_version or 'Не найден')
         self.numpy_value.setText(status.numpy or 'Не установлен')
@@ -1780,12 +1834,33 @@ class EnvironmentPage(StudioPage):
             f'Статус: {status.error or "окружение готово"}\n'
         )
 
+    def _environment_thread_finished(self, thread: QThread) -> None:
+        if self._check_thread is thread:
+            self._check_thread = None
+            self._check_worker = None
+            self._check_root = None
+        if self._check_queued:
+            self._check_queued = False
+            self.refresh()
+
     def install_environment(self) -> None:
         root = self.context.project_root
         if root is None:
             self.project_selection_requested.emit()
             return
-        status = inspect_environment(root)
+        status = (
+            self._last_status
+            if self._last_status_root == root
+            else None
+        )
+        if status is None:
+            self.refresh()
+            QMessageBox.information(
+                self,
+                'Проверка окружения',
+                'Дождитесь завершения фоновой проверки и повторите действие.',
+            )
+            return
         force = status.ready
         if force:
             answer = QMessageBox.question(

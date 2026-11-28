@@ -63,6 +63,8 @@ STRUCTURED_FLAGS = {
     '--focal-gamma',
     '--lovasz-weight',
     '--class-weight-power',
+    '--equibatch',
+    '--equibatch-positive-fraction',
     '--amp',
     '--data',
     '--final-data',
@@ -296,6 +298,10 @@ class LaunchDialog(QDialog):
         self.focal_gamma = self._double_spin(0.01, 100.0, 2.0, 2)
         self.lovasz_weight = self._double_spin(0.0, 1.0, 0.5, 2)
         self.class_weight_power = self._double_spin(0.0, 1.0, 1.0, 2)
+        self.equibatch = QCheckBox('Балансировать патчи цели и фона')
+        self.equibatch.setChecked(True)
+        self.target_fraction = self._double_spin(0.05, 0.95, 0.50, 2)
+        self.target_fraction.setSingleStep(0.05)
         self.final_epochs = self._spin(1, 10_000, 30)
         self.device = QComboBox()
         self.device.addItem('Авто', 'auto')
@@ -308,11 +314,11 @@ class LaunchDialog(QDialog):
         )
         self.fixed_params.setMaximumHeight(160)
         self.extra_args = QLineEdit()
-        self.extra_args.setPlaceholderText('--boundary-space xy --equibatch')
+        self.extra_args.setPlaceholderText('--boundary-space xy --boundary-weight 1.5')
 
         self.form.addRow('Режим', self.mode)
-        self.form.addRow('Данны для подбора', self.dataset)
-        self.form.addRow('Данны для финала', self.final_dataset)
+        self.form.addRow('Данные для подбора', self.dataset)
+        self.form.addRow('Данные для финала', self.final_dataset)
         self.form.addRow('Каталог прогонов', self.runs_dir)
         self.form.addRow('Задачи', self.tasks)
         self.form.addRow('Целевой класс', self.target)
@@ -329,6 +335,8 @@ class LaunchDialog(QDialog):
         self.form.addRow('Focal gamma', self.focal_gamma)
         self.form.addRow('Доля Lovász', self.lovasz_weight)
         self.form.addRow('Степень весов классов', self.class_weight_power)
+        self.form.addRow('Баланс цель/фон', self.equibatch)
+        self.form.addRow('Доля целевых патчей', self.target_fraction)
         self.form.addRow('Устройство', self.device)
         self.form.addRow('', self.amp)
         self.form.addRow('', self.manual_params)
@@ -379,6 +387,8 @@ class LaunchDialog(QDialog):
             self.focal_gamma,
             self.lovasz_weight,
             self.class_weight_power,
+            self.equibatch,
+            self.target_fraction,
             self.device,
             self.amp,
             self.manual_params,
@@ -401,6 +411,7 @@ class LaunchDialog(QDialog):
         self.features.currentTextChanged.connect(self._sync_run_name)
         self.mode.currentIndexChanged.connect(self._update_mode)
         self.manual_params.toggled.connect(self._update_mode)
+        self.equibatch.toggled.connect(self.target_fraction.setEnabled)
         self._update_mode()
         self._update_command()
 
@@ -475,6 +486,14 @@ class LaunchDialog(QDialog):
             '--class-weight-power',
             f'{self.class_weight_power.value():g}',
         ]
+        if self.equibatch.isChecked():
+            arguments.extend(
+                (
+                    '--equibatch',
+                    '--equibatch-positive-fraction',
+                    f'{self.target_fraction.value():g}',
+                )
+            )
         if self.amp.isChecked():
             arguments.append('--amp')
         return arguments
@@ -557,8 +576,6 @@ class LaunchDialog(QDialog):
                 raise ValueError(f'после {flag} нужно значение')
             return extras[index + 1]
 
-        equibatch = '--equibatch' in extras
-        positive_fraction = float(option('--equibatch-positive-fraction', '0.5'))
         boundary_fraction = float(option('--boundary-patch-fraction', '0'))
         boundary_weight = float(option('--boundary-weight', '1'))
         boundary_enabled = boundary_fraction > 0 or boundary_weight > 1
@@ -572,7 +589,11 @@ class LaunchDialog(QDialog):
             'patches_per_scene': self.patches_per_scene.value(),
             'loss': self._loss_description(),
             'class_weight_power': self.class_weight_power.value(),
-            'positive_fraction': positive_fraction if equibatch else None,
+            'positive_fraction': (
+                self.target_fraction.value()
+                if self.equibatch.isChecked()
+                else None
+            ),
             'boundary_fraction': boundary_fraction,
             'boundary_weight': boundary_weight,
             'boundary_radius': float(option('--boundary-radius', '0.5')) if boundary_enabled else None,
@@ -591,7 +612,7 @@ class LaunchDialog(QDialog):
             return f'не найден скрипт: {script}'
         dataset = Path(self.dataset.text()).expanduser()
         if not dataset.is_dir():
-            return f'не найдены данны для подбора: {dataset}'
+            return f'не найдены данные для подбора: {dataset}'
         runs = Path(self.runs_dir.text()).expanduser()
         if runs.exists() and not runs.is_dir():
             return f'путь прогонов не является папкой: {runs}'
@@ -635,7 +656,7 @@ class LaunchDialog(QDialog):
             if 'final' in tasks:
                 final_data = Path(self.final_dataset.text()).expanduser()
                 if not final_data.is_dir():
-                    return f'не найдены данны для финала: {final_data}'
+                    return f'не найдены данные для финала: {final_data}'
                 conflicts = sorted(runs.glob('final_*')) + sorted(runs.glob('*.params.json')) if runs.is_dir() else []
                 if conflicts:
                     shown = '\n• '.join(str(path) for path in conflicts[:8])
